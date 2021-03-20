@@ -4,12 +4,24 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 
+// Processes
+using System.Diagnostics;
+
 namespace atcs_screenshotter
 {
     class Program
     {
         static void Main(string[] args)
         {
+            // Need to get all of our processes
+            var processes = Process.GetProcessesByName("atcsmon");
+
+            foreach(var p in processes) {
+                System.Console.WriteLine($"{p.ProcessName} - {p.MainWindowHandle}");
+            }
+
+            return;
+
             // https://stackoverflow.com/questions/10741384/how-can-i-get-a-screenshot-of-control-drawtobitmap-not-working
             Bitmap BMP = new Bitmap(Screen.PrimaryScreen.Bounds.Width,
                 Screen.PrimaryScreen.Bounds.Height,
