@@ -67,7 +67,7 @@ namespace atcs_screenshotter
                     memoryGraphics.ReleaseHdc(dc);
 
                     using(Image img = Image.FromHbitmap(bmp.GetHbitmap())) {
-                        img.Save("test.jpg", ImageFormat.Jpeg);
+                        img.Save("test.png", ImageFormat.Png);
                     }
                 }
             }
