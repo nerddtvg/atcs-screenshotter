@@ -9,6 +9,9 @@ using System.Runtime.InteropServices;
 // StringBuilder
 using System.Text;
 
+// MemoryStream
+using System.IO;
+
 // Capturing the window
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -46,13 +49,18 @@ namespace atcs_screenshotter
             // https://stackoverflow.com/questions/19867402/how-can-i-use-enumwindows-to-find-windows-with-a-specific-caption-title
             var ptrs = WindowFilter.FindWindowsWithText(windowTitles.Keys).ToList();
 
+            CaptureWindow(ptrs[0]);
+        }
+
+        static byte[] CaptureWindow(IntPtr handle) {
             RECT rct;
 
-            if (!User32.GetClientRect(ptrs[0], out rct)) {
-                Console.WriteLine("ERROR: Unable to retrieve the window size.");
-                return;
+            // Use GetClientRect to get inside the window border
+            if (!User32.GetClientRect(handle, out rct)) {
+                throw new Exception("Unable to get window size.");
             }
 
+            // Determine the width
             int width = rct.right - rct.left;
             int height = rct.bottom - rct.top;
 
@@ -60,18 +68,25 @@ namespace atcs_screenshotter
                 using(Graphics memoryGraphics = Graphics.FromImage(bmp)) {
                     IntPtr dc = memoryGraphics.GetHdc();
 
-                    if (!User32.PrintWindow(ptrs[0], dc, User32.PrintWindowFlags.PW_CLIENTONLY)) {
+                    // Grab the screenshot
+                    if (!User32.PrintWindow(handle, dc, User32.PrintWindowFlags.PW_CLIENTONLY)) {
                         throw new Exception("Unable to capture the window screenshot.");
                     }
 
                     memoryGraphics.ReleaseHdc(dc);
 
+                    // Convert to an image
                     using(Image img = Image.FromHbitmap(bmp.GetHbitmap())) {
-                        img.Save("test.png", ImageFormat.Png);
+                        using (var ms = new MemoryStream()) {
+                            // Convert to a byte[]
+                            img.Save(ms, img.RawFormat);
+
+                            // Return the data
+                            return ms.ToArray();
+                        }
                     }
                 }
             }
         }
-
     }
 }
