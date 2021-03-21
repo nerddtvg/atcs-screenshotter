@@ -76,7 +76,7 @@ namespace atcs_screenshotter
         /// <param name="titleText"> The text that the window title must contain. </param>
         public static IEnumerable<IntPtr> FindWindowsWithText(string titleText, bool exactMatch = false)
         {
-            return FindWindowsWithText(new List<string>() { titleText });
+            return FindWindowsWithText(new List<string>() { titleText }, exactMatch);
         }
 
         /// <summary> Find all windows that contain the given title text </summary>
