@@ -17,6 +17,8 @@ using System.Windows.Forms;
 // Processes
 using System.Diagnostics;
 
+using PInvoke;
+
 namespace atcs_screenshotter
 {
     public class Program
@@ -42,23 +44,23 @@ namespace atcs_screenshotter
             // https://stackoverflow.com/questions/7803289/c-sharp-how-to-get-all-windows-using-mainwindowhandle
             // http://www.pinvoke.net/default.aspx/user32/EnumChildWindows.html
             // https://stackoverflow.com/questions/19867402/how-can-i-use-enumwindows-to-find-windows-with-a-specific-caption-title
-            var ptrs = WindowFilter.FindWindowsWithText(windowTitles.Keys);
+            var ptrs = WindowFilter.FindWindowsWithText(windowTitles.Keys).ToList();
 
-            System.Console.WriteLine(ptrs.Count());
+            System.Console.WriteLine(ptrs.Count);
 
-            var ctrls = ptrs.Select(a => Control.FromHandle(a)).ToList();
-            var control = ctrls[0];
+            RECT rct;
 
-            Bitmap BMP = new Bitmap(Screen.PrimaryScreen.Bounds.Width,
-                Screen.PrimaryScreen.Bounds.Height,
-                PixelFormat.Format32bppArgb);
+            if (!PInvoke.User32.GetWindowRect(ptrs[0], out rct)) {
+                Console.WriteLine("ERROR: Unable to retrieve the window size.");
+                return;
+            }
+
+            int width = rct.right - rct.left;
+            int height = rct.bottom - rct.top;
+
+            Bitmap BMP = new Bitmap(width, height, PixelFormat.Format32bppArgb);
             
-            System.Console.WriteLine($"Width: {control.Width}");
-            System.Console.WriteLine($"Width: {control.Height}");
-
-            return;
-
-            ctrls.First().DrawToBitmap(BMP, ctrls.First().ClientRectangle);
+            PInvoke.User32.PrintWindow(ptrs[0], BMP.GetHbitmap(), User32.PrintWindowFlags.PW_FULLWINDOW);
 
             Image img = Image.FromHbitmap(BMP.GetHbitmap());
             img.Save("test.jpg", ImageFormat.Jpeg);
