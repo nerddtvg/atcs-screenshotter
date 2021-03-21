@@ -76,14 +76,12 @@ namespace atcs_screenshotter
                     memoryGraphics.ReleaseHdc(dc);
 
                     // Convert to an image
-                    using(Image img = Image.FromHbitmap(bmp.GetHbitmap())) {
-                        using (var ms = new MemoryStream()) {
-                            // Convert to a byte[]
-                            img.Save(ms, img.RawFormat);
+                    using (var ms = new MemoryStream()) {
+                        // Convert to a byte[]
+                        bmp.Save(ms, bmp.RawFormat);
 
-                            // Return the data
-                            return ms.ToArray();
-                        }
+                        // Return the data
+                        return ms.ToArray();
                     }
                 }
             }
