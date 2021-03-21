@@ -46,11 +46,9 @@ namespace atcs_screenshotter
             // https://stackoverflow.com/questions/19867402/how-can-i-use-enumwindows-to-find-windows-with-a-specific-caption-title
             var ptrs = WindowFilter.FindWindowsWithText(windowTitles.Keys).ToList();
 
-            System.Console.WriteLine(ptrs.Count);
-
             RECT rct;
 
-            if (!User32.GetWindowRect(ptrs[0], out rct)) {
+            if (!User32.GetClientRect(ptrs[0], out rct)) {
                 Console.WriteLine("ERROR: Unable to retrieve the window size.");
                 return;
             }
@@ -58,38 +56,21 @@ namespace atcs_screenshotter
             int width = rct.right - rct.left;
             int height = rct.bottom - rct.top;
 
-            Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            Graphics memoryGraphics = Graphics.FromImage(bmp);
-            IntPtr dc = memoryGraphics.GetHdc();
-            bool success = User32.PrintWindow(ptrs[0], dc, User32.PrintWindowFlags.PW_CLIENTONLY);
-            memoryGraphics.ReleaseHdc(dc);
+            using(Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb)) {
+                using(Graphics memoryGraphics = Graphics.FromImage(bmp)) {
+                    IntPtr dc = memoryGraphics.GetHdc();
 
-            Image img = Image.FromHbitmap(bmp.GetHbitmap());
-            img.Save("test.jpg", ImageFormat.Jpeg);
+                    if (!User32.PrintWindow(ptrs[0], dc, User32.PrintWindowFlags.PW_CLIENTONLY)) {
+                        throw new Exception("Unable to capture the window screenshot.");
+                    }
 
-            bmp.Dispose();
-            img.Dispose();
+                    memoryGraphics.ReleaseHdc(dc);
 
-            return;
-
-            // https://stackoverflow.com/questions/10741384/how-can-i-get-a-screenshot-of-control-drawtobitmap-not-working
-            /*
-            Bitmap BMP = new Bitmap(Screen.PrimaryScreen.Bounds.Width,
-                Screen.PrimaryScreen.Bounds.Height,
-                PixelFormat.Format32bppArgb);
-
-            using (Graphics GFX = Graphics.FromImage(BMP))
-            {
-                GFX.CopyFromScreen(Screen.PrimaryScreen.Bounds.X,
-                    Screen.PrimaryScreen.Bounds.Y,
-                    0, 0,
-                    Screen.PrimaryScreen.Bounds.Size,
-                    CopyPixelOperation.SourceCopy);
+                    using(Image img = Image.FromHbitmap(bmp.GetHbitmap())) {
+                        img.Save("test.jpg", ImageFormat.Jpeg);
+                    }
+                }
             }
-
-            Image img = Image.FromHbitmap(BMP.GetHbitmap());
-            img.Save("test.jpg", ImageFormat.Jpeg);
-            */
         }
 
     }
