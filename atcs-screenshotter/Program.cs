@@ -43,13 +43,38 @@ namespace atcs_screenshotter
                 return;
             }
 
-            // Get all of the windows
-            // https://stackoverflow.com/questions/7803289/c-sharp-how-to-get-all-windows-using-mainwindowhandle
-            // http://www.pinvoke.net/default.aspx/user32/EnumChildWindows.html
-            // https://stackoverflow.com/questions/19867402/how-can-i-use-enumwindows-to-find-windows-with-a-specific-caption-title
-            var ptrs = WindowFilter.FindWindowsWithText(windowTitles.Keys).ToList();
+            foreach(var title in windowTitles) {
+                // Find the pointer(s) for this window
+                var ptrs = WindowFilter.FindWindowsWithText(title.Key, true).ToList();
 
-            CaptureWindow(ptrs[0]);
+                // If we have more than one, we need to fail out here
+                if (ptrs.Count > 1) {
+                    Console.WriteLine($"Found multiple windows for '{title.Key}', unable to proceed.");
+                } else if (ptrs.Count == 0) {
+                    Console.WriteLine($"Found no windows for '{title.Key}', unable to proceed.");
+                } else {
+                    try {
+                        // Capture this and save it
+                        var img = CaptureWindow(ptrs[0]);
+
+                        if (img == null)
+                            throw new Exception("Received zero bytes for screenshot.");
+                        
+                        // Save it
+                        SaveImage(img, $"{title.Value}.png", ImageFormat.Png);
+                    } catch (Exception e) {
+                        Console.WriteLine($"Exception thrown while capturing the window for '{title.Key}': {e.Message}");
+                    }
+                }
+            }
+        }
+
+        static void SaveImage(byte[] imgBytes, string filename, ImageFormat format) {
+            using (var ms = new MemoryStream(imgBytes)) {
+                using (var img = Image.FromStream(ms)) {
+                    img.Save(filename, format);
+                }
+            }
         }
 
         static byte[] CaptureWindow(IntPtr handle) {
