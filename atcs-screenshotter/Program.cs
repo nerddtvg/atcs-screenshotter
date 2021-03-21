@@ -46,9 +46,27 @@ namespace atcs_screenshotter
 
             System.Console.WriteLine(ptrs.Count());
 
+            var ctrls = ptrs.Select(a => Control.FromHandle(a)).ToList();
+            var control = ctrls[0];
+
+            Bitmap BMP = new Bitmap(Screen.PrimaryScreen.Bounds.Width,
+                Screen.PrimaryScreen.Bounds.Height,
+                PixelFormat.Format32bppArgb);
+            
+            System.Console.WriteLine($"Width: {control.Width}");
+            System.Console.WriteLine($"Width: {control.Height}");
+
+            return;
+
+            ctrls.First().DrawToBitmap(BMP, ctrls.First().ClientRectangle);
+
+            Image img = Image.FromHbitmap(BMP.GetHbitmap());
+            img.Save("test.jpg", ImageFormat.Jpeg);
+
             return;
 
             // https://stackoverflow.com/questions/10741384/how-can-i-get-a-screenshot-of-control-drawtobitmap-not-working
+            /*
             Bitmap BMP = new Bitmap(Screen.PrimaryScreen.Bounds.Width,
                 Screen.PrimaryScreen.Bounds.Height,
                 PixelFormat.Format32bppArgb);
@@ -64,6 +82,7 @@ namespace atcs_screenshotter
 
             Image img = Image.FromHbitmap(BMP.GetHbitmap());
             img.Save("test.jpg", ImageFormat.Jpeg);
+            */
         }
 
     }
