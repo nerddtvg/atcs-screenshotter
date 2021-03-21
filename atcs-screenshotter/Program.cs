@@ -58,12 +58,17 @@ namespace atcs_screenshotter
             int width = rct.right - rct.left;
             int height = rct.bottom - rct.top;
 
-            Bitmap BMP = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-            
-            PInvoke.User32.PrintWindow(ptrs[0], BMP.GetHbitmap(), User32.PrintWindowFlags.PW_FULLWINDOW);
+            Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            Graphics memoryGraphics = Graphics.FromImage(bmp);
+            IntPtr dc = memoryGraphics.GetHdc();
+            bool success = User32.PrintWindow(ptrs[0], dc, User32.PrintWindowFlags.PW_CLIENTONLY);
+            memoryGraphics.ReleaseHdc(dc);
 
-            Image img = Image.FromHbitmap(BMP.GetHbitmap());
+            Image img = Image.FromHbitmap(bmp.GetHbitmap());
             img.Save("test.jpg", ImageFormat.Jpeg);
+
+            bmp.Dispose();
+            img.Dispose();
 
             return;
 
