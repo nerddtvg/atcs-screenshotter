@@ -50,7 +50,7 @@ namespace atcs_screenshotter
 
             RECT rct;
 
-            if (!PInvoke.User32.GetWindowRect(ptrs[0], out rct)) {
+            if (!User32.GetWindowRect(ptrs[0], out rct)) {
                 Console.WriteLine("ERROR: Unable to retrieve the window size.");
                 return;
             }
