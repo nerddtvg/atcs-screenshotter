@@ -103,7 +103,8 @@ namespace atcs_screenshotter
                     // Convert to an image
                     using (var ms = new MemoryStream()) {
                         // Convert to a byte[]
-                        bmp.Save(ms, bmp.RawFormat);
+                        // We must specify a format here (not RawImage) because it is a MemoryBmp which cannot be converted directly
+                        bmp.Save(ms, ImageFormat.Png);
 
                         // Return the data
                         return ms.ToArray();
