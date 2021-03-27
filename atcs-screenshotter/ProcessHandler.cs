@@ -43,58 +43,71 @@ using PInvoke;
 
 namespace atcs_screenshotter
 {
+    public class ATCSConfiguration {
+        public string processName {get;set;}
+        public string windowTitle {get;set;}
+        public string blobName {get;set;}
+    }
+
     public class ProcessHandler : IHostedService
     {
-        protected static string processName = "atcsmon";
-
-        protected static Dictionary<string, string> windowTitles = new Dictionary<string, string>() {
-            { "Terminal Railroad Association", "trra" }
-        };
-
         private readonly ILogger _logger;
         private readonly IConfiguration _configuration;
+        private readonly IHostApplicationLifetime _appLifetime;
 
-        public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration)
+        private readonly string _ATCSConfigurationName = "ATCSConfiguration";
+        private List<ATCSConfiguration> _ATCSConfigurations;
+
+        public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
             this._logger = logger;
             this._configuration = configuration;
+            this._appLifetime = appLifetime;
+            this._ATCSConfigurations = null;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            this._ATCSConfigurations = this._configuration.GetSection(_ATCSConfigurationName).Get<List<ATCSConfiguration>>();
+
+            if (this._ATCSConfigurations == null || this._ATCSConfigurations.Count == 0)
+                throw new Exception($"No {this._ATCSConfigurationName} configuration found.");
+
+            var first = this._ATCSConfigurations.First();
+
             // Need to get all of our processes
-            var processes = Process.GetProcessesByName(processName).Where(a => a.MainWindowHandle.ToString() != "0").ToList();
+            var processes = Process.GetProcessesByName(first.processName).Where(a => a.MainWindowHandle.ToString() != "0").ToList();
             
             // Did we get results
             if (processes.Count == 0) {
-                Console.WriteLine($"Unable to identify '{processName}' process.");
+                Console.WriteLine($"Unable to identify '{first.processName}' process.");
                 return Task.CompletedTask;
             }
 
-            foreach(var title in windowTitles) {
-                // Find the pointer(s) for this window
-                var ptrs = WindowFilter.FindWindowsWithText(title.Key, true).ToList();
+            // Find the pointer(s) for this window
+            var ptrs = WindowFilter.FindWindowsWithText(first.windowTitle, true).ToList();
 
-                // If we have more than one, we need to fail out here
-                if (ptrs.Count > 1) {
-                    Console.WriteLine($"Found multiple windows for '{title.Key}', unable to proceed.");
-                } else if (ptrs.Count == 0) {
-                    Console.WriteLine($"Found no windows for '{title.Key}', unable to proceed.");
-                } else {
-                    try {
-                        // Capture this and save it
-                        var img = CaptureWindow(ptrs[0]);
+            // If we have more than one, we need to fail out here
+            if (ptrs.Count > 1) {
+                Console.WriteLine($"Found multiple windows for '{first.windowTitle}', unable to proceed.");
+            } else if (ptrs.Count == 0) {
+                Console.WriteLine($"Found no windows for '{first.windowTitle}', unable to proceed.");
+            } else {
+                try {
+                    // Capture this and save it
+                    var img = CaptureWindow(ptrs[0]);
 
-                        if (img == null)
-                            throw new Exception("Received zero bytes for screenshot.");
-                        
-                        // Save it
-                        SaveImage(img, $"{title.Value}.png", ImageFormat.Png);
-                    } catch (Exception e) {
-                        Console.WriteLine($"Exception thrown while capturing the window for '{title.Key}': {e.Message}");
-                    }
+                    if (img == null)
+                        throw new Exception("Received zero bytes for screenshot.");
+                    
+                    // Save it
+                    SaveImage(img, $"{first.blobName}.png", ImageFormat.Png);
+                } catch (Exception e) {
+                    Console.WriteLine($"Exception thrown while capturing the window for '{first.windowTitle}': {e.Message}");
                 }
             }
+
+            this._appLifetime.StopApplication();
 
             return Task.CompletedTask;
         }
