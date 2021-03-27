@@ -53,20 +53,8 @@ namespace atcs_screenshotter
 
         static async Task Main(string[] args)
         {
-            // This is a basic Console application that will run and send the email
-            // It exits immediately and execution is scheduled by the settings.job file
             await Host.CreateDefaultBuilder(args)
                 .ConfigureHostConfiguration(configHost => {
-                    // We should set this up four levels to the web app settings
-                    // $(PublishDir)App_Data/Jobs/triggered/Security
-                    var dir = new System.IO.DirectoryInfo(System.IO.Directory.GetCurrentDirectory());
-                    for(var i=0; i<4 && dir != null; i++)
-                        dir = dir.Parent;
-
-                    // If we got to a parent folder
-                    if (dir != null)
-                        configHost.SetBasePath(dir.FullName);
-
                     // Configuration files and settings
                     configHost.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
                     configHost.AddEnvironmentVariables();
