@@ -3,6 +3,25 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
+// Console logging
+using Microsoft.Extensions.Logging;
+
+// Tasks
+using System.Threading.Tasks;
+
+// CancellationToken
+using System.Threading;
+
+// Dependency Injection
+// https://docs.microsoft.com/en-us/azure/azure-functions/functions-dotnet-dependency-injection
+using Microsoft.Extensions.DependencyInjection;
+
+// Configuration file (if any)
+using Microsoft.Extensions.Configuration;
+
+// IHostEnvironment
+using Microsoft.Extensions.Hosting;
+
 // DLL Import
 using System.Runtime.InteropServices;
 
@@ -31,6 +50,38 @@ namespace atcs_screenshotter
         protected static Dictionary<string, string> windowTitles = new Dictionary<string, string>() {
             { "Terminal Railroad Association", "trra" }
         };
+
+        static async Task Main(string[] args)
+        {
+            // This is a basic Console application that will run and send the email
+            // It exits immediately and execution is scheduled by the settings.job file
+            await Host.CreateDefaultBuilder(args)
+                .ConfigureHostConfiguration(configHost => {
+                    // We should set this up four levels to the web app settings
+                    // $(PublishDir)App_Data/Jobs/triggered/Security
+                    var dir = new System.IO.DirectoryInfo(System.IO.Directory.GetCurrentDirectory());
+                    for(var i=0; i<4 && dir != null; i++)
+                        dir = dir.Parent;
+
+                    // If we got to a parent folder
+                    if (dir != null)
+                        configHost.SetBasePath(dir.FullName);
+
+                    // Configuration files and settings
+                    configHost.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                    configHost.AddEnvironmentVariables();
+                    configHost.AddCommandLine(args);
+                }).ConfigureServices((hostContext, services) => {
+                    // Always include the console logs
+                    services.AddLogging(builder =>
+                    {
+                        builder.AddConsole();
+                    });
+
+                    // Setup the actual function we will be running
+                    services.AddHostedService<SecurityWebjob>();
+                }).RunConsoleAsync();
+        }
 
         static void Main(string[] args)
         {
