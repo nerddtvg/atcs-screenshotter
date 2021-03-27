@@ -66,12 +66,30 @@ namespace atcs_screenshotter
             this._ATCSConfigurations = null;
         }
 
+        private bool IsValidConfiguration(ATCSConfiguration config) =>
+            (!string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
+
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            this._ATCSConfigurations = this._configuration.GetSection(_ATCSConfigurationName).Get<List<ATCSConfiguration>>();
+            // Get our configuration information
+            this._ATCSConfigurations = this._configuration.GetSection(this._ATCSConfigurationName).Get<List<ATCSConfiguration>>();
 
+            // Remove any bad configurations
+            if (this._ATCSConfigurations != null) {
+                var remove = this._ATCSConfigurations.Where(a => !IsValidConfiguration(a)).ToList();
+                remove.ForEach(a => {
+                    this._logger.LogWarning($"Invalid {this._ATCSConfigurationName} configuration: {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._ATCSConfigurations.Remove(a);
+                });
+            }
+
+            // Make sure we have good configurations
             if (this._ATCSConfigurations == null || this._ATCSConfigurations.Count == 0)
                 throw new Exception($"No {this._ATCSConfigurationName} configuration found.");
+
+            // Log this information
+            this._logger.LogInformation($"Valid {this._ATCSConfigurationName} section found, count: {this._ATCSConfigurations.Count}");
+            this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
 
             var first = this._ATCSConfigurations.First();
 
