@@ -50,7 +50,7 @@ namespace atcs_screenshotter
         public string blobName {get;set;}
     }
 
-    public class ProcessHandler : IHostedService
+    public class ProcessHandler : BackgroundService
     {
         private readonly ILogger _logger;
         private readonly IConfiguration _configuration;
@@ -76,7 +76,7 @@ namespace atcs_screenshotter
         private bool IsValidConfiguration(ATCSConfiguration config) =>
             (!string.IsNullOrWhiteSpace(config.id) && !string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             // Get our configuration information
             this._ATCSConfigurations = this._configuration.GetSection(this._ATCSConfigurationName).Get<List<ATCSConfiguration>>();
@@ -106,17 +106,12 @@ namespace atcs_screenshotter
                 this._tasks.Add(Task.Run(() => CaptureProcess(a, cancellationToken), cancellationToken));
             });
 
-            return Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
+            Task.WaitAll(this._tasks.ToArray());
         }
 
         private async void CaptureProcess(ATCSConfiguration configuration, CancellationToken cancellationToken)
         {
-            while(true) {
+            while(true && !cancellationToken.IsCancellationRequested) {
                 // Need to get all of our processes
                 this._logger.LogDebug($"Searching for process '{configuration.processName}' with window title '{configuration.windowTitle}' for configuration '{configuration.id}'");
 
@@ -146,7 +141,7 @@ namespace atcs_screenshotter
                     }
                 }
 
-                await Task.Delay(this._frequency);
+                await Task.Delay(this._frequency, cancellationToken);
             }
         }
 
