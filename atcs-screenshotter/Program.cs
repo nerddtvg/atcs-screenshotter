@@ -63,6 +63,8 @@ namespace atcs_screenshotter
                     // Always include the console logs
                     services.AddLogging(builder =>
                     {
+                        // Excessive logging limits
+                        builder.SetMinimumLevel(LogLevel.Debug);
                         builder.AddConsole();
                     });
 
