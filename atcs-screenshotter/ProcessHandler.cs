@@ -44,6 +44,7 @@ using PInvoke;
 namespace atcs_screenshotter
 {
     public class ATCSConfiguration {
+        public string id {get;set;}
         public string processName {get;set;}
         public string windowTitle {get;set;}
         public string blobName {get;set;}
@@ -67,7 +68,7 @@ namespace atcs_screenshotter
         }
 
         private bool IsValidConfiguration(ATCSConfiguration config) =>
-            (!string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
+            (!string.IsNullOrWhiteSpace(config.id) && !string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -94,22 +95,16 @@ namespace atcs_screenshotter
             var first = this._ATCSConfigurations.First();
 
             // Need to get all of our processes
-            var processes = Process.GetProcessesByName(first.processName).Where(a => a.MainWindowHandle.ToString() != "0").ToList();
-            
-            // Did we get results
-            if (processes.Count == 0) {
-                Console.WriteLine($"Unable to identify '{first.processName}' process.");
-                return Task.CompletedTask;
-            }
+            this._logger.LogDebug($"Searching for process '{first.processName}' with window title '{first.windowTitle}' for configuration '{first.id}'");
 
             // Find the pointer(s) for this window
             var ptrs = WindowFilter.FindWindowsWithText(first.windowTitle, true).ToList();
 
             // If we have more than one, we need to fail out here
             if (ptrs.Count > 1) {
-                Console.WriteLine($"Found multiple windows for '{first.windowTitle}', unable to proceed.");
+                this._logger.LogWarning($"Found multiple windows for '{first.windowTitle}', unable to proceed.");
             } else if (ptrs.Count == 0) {
-                Console.WriteLine($"Found no windows for '{first.windowTitle}', unable to proceed.");
+                this._logger.LogWarning($"Found no windows for '{first.windowTitle}', unable to proceed.");
             } else {
                 try {
                     // Capture this and save it
@@ -121,7 +116,7 @@ namespace atcs_screenshotter
                     // Save it
                     SaveImage(img, $"{first.blobName}.png", ImageFormat.Png);
                 } catch (Exception e) {
-                    Console.WriteLine($"Exception thrown while capturing the window for '{first.windowTitle}': {e.Message}");
+                    this._logger.LogError(e, $"Exception thrown while capturing the window for '{first.windowTitle}': {e.Message}");
                 }
             }
 
