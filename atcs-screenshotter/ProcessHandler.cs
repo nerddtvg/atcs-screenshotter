@@ -59,6 +59,12 @@ namespace atcs_screenshotter
         private readonly string _ATCSConfigurationName = "ATCSConfiguration";
         private List<ATCSConfiguration> _ATCSConfigurations;
 
+        // How often in milliseconds we should wait
+        private int _frequency = 5000;
+
+        // Keep a list of the tasks we start for each configuration
+        private List<Task> _tasks;
+
         public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
             this._logger = logger;
@@ -91,36 +97,14 @@ namespace atcs_screenshotter
             // Log this information
             this._logger.LogInformation($"Valid {this._ATCSConfigurationName} section found, count: {this._ATCSConfigurations.Count}");
             this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
+            
+            // We need to start tasks for each of the processes we have
+            this._tasks = new List<Task>();
 
-            var first = this._ATCSConfigurations.First();
-
-            // Need to get all of our processes
-            this._logger.LogDebug($"Searching for process '{first.processName}' with window title '{first.windowTitle}' for configuration '{first.id}'");
-
-            // Find the pointer(s) for this window
-            var ptrs = WindowFilter.FindWindowsWithText(first.windowTitle, true).ToList();
-
-            // If we have more than one, we need to fail out here
-            if (ptrs.Count > 1) {
-                this._logger.LogWarning($"Found multiple windows for '{first.windowTitle}', unable to proceed.");
-            } else if (ptrs.Count == 0) {
-                this._logger.LogWarning($"Found no windows for '{first.windowTitle}', unable to proceed.");
-            } else {
-                try {
-                    // Capture this and save it
-                    var img = CaptureWindow(ptrs[0]);
-
-                    if (img == null)
-                        throw new Exception("Received zero bytes for screenshot.");
-                    
-                    // Save it
-                    SaveImage(img, $"{first.blobName}.png", ImageFormat.Png);
-                } catch (Exception e) {
-                    this._logger.LogError(e, $"Exception thrown while capturing the window for '{first.windowTitle}': {e.Message}");
-                }
-            }
-
-            this._appLifetime.StopApplication();
+            // Go through and start the tasks
+            this._ATCSConfigurations.ForEach(a => {
+                this._tasks.Add(Task.Run(() => CaptureProcess(a, cancellationToken), cancellationToken));
+            });
 
             return Task.CompletedTask;
         }
@@ -128,6 +112,42 @@ namespace atcs_screenshotter
         public Task StopAsync(CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+
+        private async void CaptureProcess(ATCSConfiguration configuration, CancellationToken cancellationToken)
+        {
+            while(true) {
+                // Need to get all of our processes
+                this._logger.LogDebug($"Searching for process '{configuration.processName}' with window title '{configuration.windowTitle}' for configuration '{configuration.id}'");
+
+                // Find the pointer(s) for this window
+                var ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+
+                // If we have more than one, we need to fail out here
+                if (ptrs.Count > 1) {
+                    this._logger.LogWarning($"Found multiple windows for '{configuration.id}', unable to proceed.");
+                } else if (ptrs.Count == 0) {
+                    this._logger.LogWarning($"Found no windows for '{configuration.id}', unable to proceed.");
+                } else {
+                    try {
+                        // Capture this and save it
+                        this._logger.LogDebug($"Capturing window with handle '{ptrs[0].ToString()} for configuration '{configuration.id}'.");
+                        var img = CaptureWindow(ptrs[0]);
+
+                        if (img == null)
+                            throw new Exception("Received zero bytes for screenshot.");
+                        
+                        // Save it
+                        SaveImage(img, $"{configuration.blobName}.png", ImageFormat.Png);
+                        this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
+                    } catch (Exception e) {
+                        this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
+                        return;
+                    }
+                }
+
+                await Task.Delay(this._frequency);
+            }
         }
 
         static void SaveImage(byte[] imgBytes, string filename, ImageFormat format) {
