@@ -53,20 +53,24 @@ namespace atcs_screenshotter
         public string blobName {get;set;}
     }
 
-    public class ProcessHandler : BackgroundService
+    struct TimerState {
+        public ATCSConfiguration configuration;
+        public CancellationToken cancellationToken;
+    }
+
+    public class ProcessHandler : IHostedService, IDisposable
     {
         private readonly ILogger _logger;
         private readonly IConfiguration _configuration;
         private readonly IHostApplicationLifetime _appLifetime;
+
+        private List<System.Threading.Timer> _timer;
 
         private readonly string _ATCSConfigurationName = "ATCSConfiguration";
         private List<ATCSConfiguration> _ATCSConfigurations;
 
         // How often in milliseconds we should wait
         private int _frequency = 5000;
-
-        // Keep a list of the tasks we start for each configuration
-        private ConcurrentBag<Task> _tasks;
 
         public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
@@ -79,7 +83,7 @@ namespace atcs_screenshotter
         private bool IsValidConfiguration(ATCSConfiguration config) =>
             (!string.IsNullOrWhiteSpace(config.id) && !string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
 
-        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+        public Task StartAsync(CancellationToken cancellationToken)
         {
             // Get our configuration information
             this._ATCSConfigurations = this._configuration.GetSection(this._ATCSConfigurationName).Get<List<ATCSConfiguration>>();
@@ -102,23 +106,37 @@ namespace atcs_screenshotter
             this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
             
             // We need to start tasks for each of the processes we have
-            this._tasks = new ConcurrentBag<Task>();
+            this._timer = new List<System.Threading.Timer>();
 
             // Go through and start the tasks
             this._ATCSConfigurations.ForEach(a => {
-                this._tasks.Add(Task.Run(() => CaptureProcess(a, cancellationToken), cancellationToken));
+                var state = new TimerState() { configuration = a, cancellationToken = cancellationToken };
+                this._timer.Add(new System.Threading.Timer(CaptureProcess, state, TimeSpan.Zero, TimeSpan.FromMilliseconds(this._frequency)));
             });
 
-            await Task.WhenAll(this._tasks.ToArray());
-
-            // Display status of all tasks.
-            foreach (var task in this._tasks)
-                Console.WriteLine("Task {0} status is now {1}", task.Id, task.Status);
+            return Task.CompletedTask;
         }
 
-        private Task CaptureProcess(ATCSConfiguration configuration, CancellationToken cancellationToken)
+        public Task StopAsync(CancellationToken stoppingToken)
         {
-            while(true && !cancellationToken.IsCancellationRequested) {
+            _logger.LogInformation("Timed Hosted Service is stopping.");
+
+            _timer?.ForEach(a => a.Change(Timeout.Infinite, 0));
+
+            return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            _timer?.ForEach(a => a.Dispose());
+        }
+
+        private void CaptureProcess(object state)
+        {
+            var configuration = ((TimerState) state).configuration;
+            var cancellationToken = ((TimerState) state).cancellationToken;
+
+            if (!cancellationToken.IsCancellationRequested) {
                 // Need to get all of our processes
                 this._logger.LogDebug($"Searching for process '{configuration.processName}' with window title '{configuration.windowTitle}' for configuration '{configuration.id}'");
 
@@ -144,14 +162,12 @@ namespace atcs_screenshotter
                         this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
                     } catch (Exception e) {
                         this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
-                        return Task.CompletedTask;
+                        return;
                     }
                 }
-
-                Task.Delay(this._frequency, cancellationToken).Wait();
             }
 
-            return Task.CompletedTask;
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         static void SaveImage(byte[] imgBytes, string filename, ImageFormat format) {
