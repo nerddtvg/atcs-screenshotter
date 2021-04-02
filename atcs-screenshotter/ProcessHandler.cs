@@ -166,8 +166,6 @@ namespace atcs_screenshotter
                     }
                 }
             }
-
-            cancellationToken.ThrowIfCancellationRequested();
         }
 
         static void SaveImage(byte[] imgBytes, string filename, ImageFormat format) {
