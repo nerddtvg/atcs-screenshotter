@@ -58,7 +58,7 @@ namespace atcs_screenshotter
                     services.AddLogging(builder =>
                     {
                         // Excessive logging limits
-                        builder.SetMinimumLevel(LogLevel.Debug);
+                        builder.SetMinimumLevel(LogLevel.Trace);
                         builder.AddConsole();
                     });
 
