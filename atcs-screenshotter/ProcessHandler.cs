@@ -116,7 +116,7 @@ namespace atcs_screenshotter
                 Console.WriteLine("Task {0} status is now {1}", task.Id, task.Status);
         }
 
-        private async void CaptureProcess(ATCSConfiguration configuration, CancellationToken cancellationToken)
+        private Task CaptureProcess(ATCSConfiguration configuration, CancellationToken cancellationToken)
         {
             while(true && !cancellationToken.IsCancellationRequested) {
                 // Need to get all of our processes
@@ -144,12 +144,14 @@ namespace atcs_screenshotter
                         this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
                     } catch (Exception e) {
                         this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
-                        return;
+                        return Task.CompletedTask;
                     }
                 }
 
-                await Task.Delay(this._frequency, cancellationToken);
+                Task.Delay(this._frequency, cancellationToken).Wait();
             }
+
+            return Task.CompletedTask;
         }
 
         static void SaveImage(byte[] imgBytes, string filename, ImageFormat format) {
