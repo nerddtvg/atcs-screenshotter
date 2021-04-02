@@ -45,12 +45,6 @@ namespace atcs_screenshotter
 {
     public class Program
     {
-        protected static string processName = "atcsmon";
-
-        protected static Dictionary<string, string> windowTitles = new Dictionary<string, string>() {
-            { "Terminal Railroad Association", "trra" }
-        };
-
         static async Task Main(string[] args)
         {
             await Host.CreateDefaultBuilder(args)
