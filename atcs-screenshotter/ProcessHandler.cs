@@ -58,7 +58,7 @@ namespace atcs_screenshotter
         public CancellationToken cancellationToken;
     }
 
-    public class ProcessHandler : IHostedService, IDisposable
+    public class ProcessHandler : BackgroundService
     {
         private readonly ILogger _logger;
         private readonly IConfiguration _configuration;
@@ -83,7 +83,7 @@ namespace atcs_screenshotter
         private bool IsValidConfiguration(ATCSConfiguration config) =>
             (!string.IsNullOrWhiteSpace(config.id) && !string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        protected override Task ExecuteAsync(CancellationToken cancellationToken)
         {
             // Get our configuration information
             this._ATCSConfigurations = this._configuration.GetSection(this._ATCSConfigurationName).Get<List<ATCSConfiguration>>();
@@ -117,18 +117,19 @@ namespace atcs_screenshotter
             return Task.CompletedTask;
         }
 
-        public Task StopAsync(CancellationToken stoppingToken)
+        public override Task StopAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Timed Hosted Service is stopping.");
 
             _timer?.ForEach(a => a.Change(Timeout.Infinite, 0));
 
-            return Task.CompletedTask;
+            return base.StopAsync(stoppingToken);
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             _timer?.ForEach(a => a.Dispose());
+            base.Dispose();
         }
 
         private void CaptureProcess(object state)
