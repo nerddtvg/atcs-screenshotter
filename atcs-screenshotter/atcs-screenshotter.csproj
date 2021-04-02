@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- This should be Exe to work with RunConsoleAsync -->
     <OutputType>Exe</OutputType>
+    <!-- Keep this as true to prevent the above from being changed to WinExe -->
+    <!-- https://docs.microsoft.com/en-us/dotnet/core/compatibility/windows-forms/5.0/automatically-infer-winexe-output-type#recommended-action -->
+    <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
+
     <TargetFramework>net5.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>atcs_screenshotter</RootNamespace>
-    <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
   </PropertyGroup>
 
   <ItemGroup>
