@@ -83,7 +83,6 @@ namespace atcs_screenshotter
 
     struct TimerState {
         public ATCSConfiguration configuration;
-        public CancellationToken cancellationToken;
     }
 
     public class ProcessHandler : BackgroundService
