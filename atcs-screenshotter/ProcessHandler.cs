@@ -94,6 +94,9 @@ namespace atcs_screenshotter
 
         private List<System.Threading.Timer> _timer;
 
+        // Due to the expanding time it takes to run each sequence, we need to enable locking so we don't accidentally overlap
+        private Dictionary<string, object> _locks = new Dictionary<string, object>();
+
         // The actual configurations of what screenshots to capture
         private List<ATCSConfiguration> _ATCSConfigurations;
 
@@ -352,6 +355,9 @@ namespace atcs_screenshotter
 
             // Go through and start the tasks
             this._ATCSConfigurations.ForEach(a => {
+                // Create the lock object
+                this._locks.Add(a.id, new object());
+
                 var state = new TimerState() { configuration = a, cancellationToken = cancellationToken };
                 this._timer.Add(new System.Threading.Timer(CaptureProcess, state, TimeSpan.Zero, TimeSpan.FromMilliseconds(this._frequency)));
             });
@@ -393,123 +399,128 @@ namespace atcs_screenshotter
             var configuration = ((TimerState) state).configuration;
             var cancellationToken = ((TimerState) state).cancellationToken;
 
-            if (!cancellationToken.IsCancellationRequested) {
-                // Need to get all of our processes
-                this._logger.LogDebug($"Searching for process '{configuration.processName}' with window title '{configuration.windowTitle}' for configuration '{configuration.id}'");
+            if (!cancellationToken.IsCancellationRequested && Monitor.TryEnter(this._locks[configuration.id])) {
+                try {
+                    // Need to get all of our processes
+                    this._logger.LogDebug($"Searching for process '{configuration.processName}' with window title '{configuration.windowTitle}' for configuration '{configuration.id}'");
 
-                // Find the pointer(s) for this window
-                var ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+                    // Find the pointer(s) for this window
+                    var ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
 
-                // We will attempt to auto start if we have been provided the right information
-                if (ptrs.Count == 0 && configuration.autoStart && this._canLaunch) {
-                    // Attempt to launch the application and wait 10 seconds to continue
+                    // We will attempt to auto start if we have been provided the right information
+                    if (ptrs.Count == 0 && configuration.autoStart && this._canLaunch) {
+                        // Attempt to launch the application and wait 10 seconds to continue
 
-                    // If we have already launched this application, do we have a problem?
-                    if (configuration._process != null) {
-                        if (configuration._process.HasExited) {
-                            if (configuration._attempts >= this._maxProcessAttempts) {
-                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely and failed too many times. Disabling auto start.");
-                                configuration.autoStart = false;
-                                return;
+                        // If we have already launched this application, do we have a problem?
+                        if (configuration._process != null) {
+                            if (configuration._process.HasExited) {
+                                if (configuration._attempts >= this._maxProcessAttempts) {
+                                    this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely and failed too many times. Disabling auto start.");
+                                    configuration.autoStart = false;
+                                    return;
+                                }
+
+                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Will re-attempt.");
+                            } else {
+                                // So we have launched a process but we don't have a window, this is a failure
+                                configuration._process.Kill();
+
+                                if (configuration._attempts >= this._maxProcessAttempts) {
+                                    this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id}' killed. Disabling auto start");
+                                    configuration.autoStart = false;
+                                    return;
+                                }
+
+                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id}' killed. Will re-attempt.");
                             }
 
-                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Will re-attempt.");
-                        } else {
-                            // So we have launched a process but we don't have a window, this is a failure
-                            configuration._process.Kill();
-
-                            if (configuration._attempts >= this._maxProcessAttempts) {
-                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id}' killed. Disabling auto start");
-                                configuration.autoStart = false;
-                                return;
-                            }
-
-                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id}' killed. Will re-attempt.");
+                            configuration._process.Dispose();
                         }
 
-                        configuration._process.Dispose();
+                        // The process expects just the profile file name that exists in its own directory
+                        try {
+                            // Increment our counter
+                            configuration._attempts++;
+
+                            this._logger.LogDebug($"Launching process '{this._ATCSFullPath}' with profile '{configuration.profile}' for configuration '{configuration.id}' (Attempt {configuration._attempts} of {this._maxProcessAttempts})");
+                            configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
+
+                            // If we have a null response, it failed to start
+                            if (configuration._process == null)
+                                throw new Exception("Error auto starting the process but no exception provided.");
+
+                            await Task.Delay(this._processLaunchTime);
+
+                            // Attempt to find the windows again
+                            ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+
+                            // We don't check agian because we will do it below. We will also give this one more timer interval before failing it out with the above code
+                        } catch (Exception e) {
+                            this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
+                            configuration.autoStart = false;
+                        }
                     }
 
-                    // The process expects just the profile file name that exists in its own directory
-                    try {
-                        // Increment our counter
-                        configuration._attempts++;
+                    // If we have more than one, we need to fail out here
+                    if (ptrs.Count > 1) {
+                        this._logger.LogWarning($"Found multiple windows for '{configuration.id}', unable to proceed.");
+                    } else if (ptrs.Count == 0) {
+                        this._logger.LogWarning($"Found no windows for '{configuration.id}', unable to proceed.");
+                    } else {
+                        try {
+                            // Capture this and save it
+                            this._logger.LogDebug($"Capturing window with handle '{ptrs[0].ToString()}' for configuration '{configuration.id}'.");
+                            var img = CaptureWindow(ptrs[0]);
 
-                        this._logger.LogDebug($"Launching process '{this._ATCSFullPath}' with profile '{configuration.profile}' for configuration '{configuration.id}' (Attempt {configuration._attempts} of {this._maxProcessAttempts})");
-                        configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
+                            if (img == null)
+                                throw new Exception("Received zero bytes for screenshot.");
+                            
+                            // Determine the filename
+                            // Keep these separate for now, blob may change down the road
+                            var blobPath = $"{configuration.blobName}{this._ImageExt}".Trim();
+                            var filePath = $"{configuration.blobName}{this._ImageExt}".Trim();
+                            
+                            // Upload it to Azure
+                            if (this._enableUpload) {
+                                using (var ms = new MemoryStream(img)) {
+                                    using(var ctx = new CancellationTokenSource()) {
+                                        // Set our maximum upload time
+                                        ctx.CancelAfter(this._maxUploadTime);
 
-                        // If we have a null response, it failed to start
-                        if (configuration._process == null)
-                            throw new Exception("Error auto starting the process but no exception provided.");
-
-                        await Task.Delay(this._processLaunchTime);
-
-                        // Attempt to find the windows again
-                        ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
-
-                        // We don't check agian because we will do it below. We will also give this one more timer interval before failing it out with the above code
-                    } catch (Exception e) {
-                        this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
-                        configuration.autoStart = false;
-                    }
-                }
-
-                // If we have more than one, we need to fail out here
-                if (ptrs.Count > 1) {
-                    this._logger.LogWarning($"Found multiple windows for '{configuration.id}', unable to proceed.");
-                } else if (ptrs.Count == 0) {
-                    this._logger.LogWarning($"Found no windows for '{configuration.id}', unable to proceed.");
-                } else {
-                    try {
-                        // Capture this and save it
-                        this._logger.LogDebug($"Capturing window with handle '{ptrs[0].ToString()}' for configuration '{configuration.id}'.");
-                        var img = CaptureWindow(ptrs[0]);
-
-                        if (img == null)
-                            throw new Exception("Received zero bytes for screenshot.");
-                        
-                        // Determine the filename
-                        // Keep these separate for now, blob may change down the road
-                        var blobPath = $"{configuration.blobName}{this._ImageExt}".Trim();
-                        var filePath = $"{configuration.blobName}{this._ImageExt}".Trim();
-                        
-                        // Upload it to Azure
-                        if (this._enableUpload) {
-                            using (var ms = new MemoryStream(img)) {
-                                using(var ctx = new CancellationTokenSource()) {
-                                    // Set our maximum upload time
-                                    ctx.CancelAfter(this._maxUploadTime);
-
-                                    try {
-                                        var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
-                                        await blobClient.UploadAsync(ms, true, ctx.Token);
-                                        
-                                        var headers = new BlobHttpHeaders();
-                                        headers.ContentDisposition = "inline";
-                                        headers.ContentType = this._ImageMime;
-                                        blobClient.SetHttpHeaders(headers);
-                                        
-                                        this._logger.LogInformation($"Blob '{blobPath}' saved for configuration '{configuration.id}'.");
-                                    } catch (TaskCanceledException e) {
-                                        this._logger.LogError(e, $"Blob '{blobPath}' took too long to upload, cancelled.");
+                                        try {
+                                            var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
+                                            await blobClient.UploadAsync(ms, true, ctx.Token);
+                                            
+                                            var headers = new BlobHttpHeaders();
+                                            headers.ContentDisposition = "inline";
+                                            headers.ContentType = this._ImageMime;
+                                            blobClient.SetHttpHeaders(headers);
+                                            
+                                            this._logger.LogInformation($"Blob '{blobPath}' saved for configuration '{configuration.id}'.");
+                                        } catch (TaskCanceledException e) {
+                                            this._logger.LogError(e, $"Blob '{blobPath}' took too long to upload, cancelled.");
+                                        }
                                     }
                                 }
+                            } else {
+                                this._logger.LogDebug("Upload skipped due to configuration.");
                             }
-                        } else {
-                            this._logger.LogDebug("Upload skipped due to configuration.");
+                            
+                            // Save it
+                            if (configuration.saveFile) {
+                                SaveImage(img, filePath, this._ImageFormat);
+                                this._logger.LogDebug($"File '{filePath}' saved for configuration '{configuration.id}'.");
+                            } else {
+                                this._logger.LogDebug("Save file skipped due to configuration.");
+                            }
+                        } catch (Exception e) {
+                            this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
                         }
-                        
-                        // Save it
-                        if (configuration.saveFile) {
-                            SaveImage(img, filePath, this._ImageFormat);
-                            this._logger.LogDebug($"File '{filePath}' saved for configuration '{configuration.id}'.");
-                        } else {
-                            this._logger.LogDebug("Save file skipped due to configuration.");
-                        }
-                    } catch (Exception e) {
-                        this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
-                        return;
                     }
+                } catch (Exception e) {
+                    this._logger.LogError(e, $"Uncaught exception in {nameof(CaptureProcess)}.");
+                } finally {
+                    Monitor.Exit(this._locks[configuration.id]);
                 }
             }
         }
