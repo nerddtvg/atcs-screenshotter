@@ -119,7 +119,10 @@ namespace atcs_screenshotter
             this._AzureStorageConfiguration = this._configuration.GetSection(nameof(AzureStorageConfiguration)).Get<AzureStorageConfiguration>();
 
             // If we have nothing, skip
-            if (this._AzureStorageConfiguration == null) return;
+            if (this._AzureStorageConfiguration == null) {
+                this._logger.LogWarning($"No {nameof(AzureStorageConfiguration)} provided for uploads. Uploads disabled.");
+                return;
+            }
 
             // If we don't have a container name, move on
             if (string.IsNullOrEmpty(this._AzureStorageConfiguration.containerName)) {
