@@ -152,6 +152,9 @@ namespace atcs_screenshotter
 
                     // Create the client
                     this._blobServiceClient = new BlobServiceClient(blobUri.Uri, credential);
+
+                    // Test the account
+                    this._blobServiceClient.GetProperties();
                 } else {
                     this._logger.LogError(new ArgumentNullException(nameof(AzureStorageConfiguration)), "No Connection String or no valid combination of Account Name and Access Key provided in the storage configuration.");
                     return;
