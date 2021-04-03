@@ -58,6 +58,13 @@ namespace atcs_screenshotter
         public string windowTitle {get;set;}
         public string blobName {get;set;}
         public bool saveFile {get;set;} = true;
+
+        // Should we automatically start the ATCS Monitor application?
+        public bool autoStart {get;set;} = false;
+        public string profile {get;set;}
+
+        // These are used by our program and not for configurations
+        public Process _process {get;set;}
     }
 
     public class AzureStorageConfiguration {
