@@ -408,7 +408,7 @@ namespace atcs_screenshotter
                     if (configuration._process != null) {
                         if (configuration._process.HasExited) {
                             if (configuration._attempts >= this._maxProcessAttempts) {
-                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Disabling auto start.");
+                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely and failed too many times. Disabling auto start.");
                                 configuration.autoStart = false;
                                 return;
                             }
@@ -419,12 +419,12 @@ namespace atcs_screenshotter
                             configuration._process.Kill();
 
                             if (configuration._attempts >= this._maxProcessAttempts) {
-                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id} killed. Disabling auto start");
+                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id}' killed. Disabling auto start");
                                 configuration.autoStart = false;
                                 return;
                             }
 
-                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id} killed. Will re-attempt.");
+                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id}' killed. Will re-attempt.");
                         }
 
                         configuration._process.Dispose();
