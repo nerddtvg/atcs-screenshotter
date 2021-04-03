@@ -391,7 +391,33 @@ namespace atcs_screenshotter
                 if (ptrs.Count == 0 && configuration.autoStart && this._canLaunch) {
                     // Attempt to launch the application and wait 10 seconds to continue
 
-                    await Task.Delay(10000);
+                    // If we have already launched this application, do we have a problem?
+                    if (configuration._process != null) {
+                        // First, disable auto start
+                        configuration.autoStart = false;
+
+                        if (configuration._process.HasExited) {
+                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Disabling auto start.");
+                        } else {
+                            // So we have launched a process but we don't have a window, this is a failure
+                            configuration._process.Kill();
+                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id} killed.");
+                        }
+                    } else {
+                        // The process expects just the profile file name that exists in its own directory
+                        try {
+                            configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
+
+                            // If we have a null response, it failed to start
+                            if (configuration._process == null)
+                                throw new Exception("Error auto starting the process but no exception provided.");
+
+                            await Task.Delay(10000);
+                        } catch (Exception e) {
+                            this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
+                            configuration.autoStart = false;
+                        }
+                    }
                 }
 
                 // If we have more than one, we need to fail out here
