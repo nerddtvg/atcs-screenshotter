@@ -418,6 +418,8 @@ namespace atcs_screenshotter
 
                             // Attempt to find the windows again
                             ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+
+                            // We don't check agian because we will do it below. We will also give this one more timer interval before failing it out with the above code
                         } catch (Exception e) {
                             this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
                             configuration.autoStart = false;
