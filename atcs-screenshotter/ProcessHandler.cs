@@ -378,7 +378,7 @@ namespace atcs_screenshotter
                 var ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
 
                 // We will attempt to auto start if we have been provided the right information
-                if (ptrs.Count == 0 && configuration.autoStart) {
+                if (ptrs.Count == 0 && configuration.autoStart && this._canLaunch) {
                     // Attempt to launch the application and wait 10 seconds to continue
 
                     await Task.Delay(10000);
