@@ -57,6 +57,7 @@ namespace atcs_screenshotter
         public string processName {get;set;}
         public string windowTitle {get;set;}
         public string blobName {get;set;}
+        public bool saveFile {get;set;} = true;
     }
 
     public class AzureStorageConfiguration {
@@ -285,8 +286,12 @@ namespace atcs_screenshotter
                         }
                         
                         // Save it
-                        SaveImage(img, $"{configuration.blobName}.png", this._ImageFormat);
-                        this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
+                        if (configuration.saveFile) {
+                            SaveImage(img, $"{configuration.blobName}.png", this._ImageFormat);
+                            this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
+                        } else {
+                            this._logger.LogDebug("Save file skipped due to configuration.");
+                        }
                     } catch (Exception e) {
                         this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
                         return;
