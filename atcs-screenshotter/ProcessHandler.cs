@@ -435,10 +435,11 @@ namespace atcs_screenshotter
 
                     // The process expects just the profile file name that exists in its own directory
                     try {
-                        configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
-
                         // Increment our counter
                         configuration._attempts++;
+
+                        this._logger.LogDebug($"Launching process '{this._ATCSFullPath}' with profile '{configuration.profile}' for configuration '{configuration.id}' (Attempt {configuration._attempts} of {this._maxProcessAttempts})");
+                        configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
 
                         // If we have a null response, it failed to start
                         if (configuration._process == null)
