@@ -431,28 +431,28 @@ namespace atcs_screenshotter
                         }
 
                         configuration._process.Dispose();
-                    } else {
-                        // The process expects just the profile file name that exists in its own directory
-                        try {
-                            configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
+                    }
 
-                            // Increment our counter
-                            configuration._attempts++;
+                    // The process expects just the profile file name that exists in its own directory
+                    try {
+                        configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
 
-                            // If we have a null response, it failed to start
-                            if (configuration._process == null)
-                                throw new Exception("Error auto starting the process but no exception provided.");
+                        // Increment our counter
+                        configuration._attempts++;
 
-                            await Task.Delay(this._processLaunchTime);
+                        // If we have a null response, it failed to start
+                        if (configuration._process == null)
+                            throw new Exception("Error auto starting the process but no exception provided.");
 
-                            // Attempt to find the windows again
-                            ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+                        await Task.Delay(this._processLaunchTime);
 
-                            // We don't check agian because we will do it below. We will also give this one more timer interval before failing it out with the above code
-                        } catch (Exception e) {
-                            this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
-                            configuration.autoStart = false;
-                        }
+                        // Attempt to find the windows again
+                        ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+
+                        // We don't check agian because we will do it below. We will also give this one more timer interval before failing it out with the above code
+                    } catch (Exception e) {
+                        this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
+                        configuration.autoStart = false;
                     }
                 }
 
