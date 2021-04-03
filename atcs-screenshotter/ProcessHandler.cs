@@ -307,7 +307,7 @@ namespace atcs_screenshotter
                 } else {
                     try {
                         // Capture this and save it
-                        this._logger.LogDebug($"Capturing window with handle '{ptrs[0].ToString()} for configuration '{configuration.id}'.");
+                        this._logger.LogDebug($"Capturing window with handle '{ptrs[0].ToString()}' for configuration '{configuration.id}'.");
                         var img = CaptureWindow(ptrs[0]);
 
                         if (img == null)
