@@ -44,6 +44,10 @@ using System.Diagnostics;
 
 using PInvoke;
 
+// Azure Storage
+using Azure.Storage.Blobs;
+using Azure.Storage.Sas;
+
 namespace atcs_screenshotter
 {
     public class ATCSConfiguration {
@@ -72,12 +76,20 @@ namespace atcs_screenshotter
         // How often in milliseconds we should wait
         private int _frequency = 5000;
 
+        private BlobServiceClient _blobServiceClient;
+        private BlobContainerClient _blobContainerClient;
+        private string _containerName = "atcs";
+
         public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
             this._logger = logger;
             this._configuration = configuration;
             this._appLifetime = appLifetime;
             this._ATCSConfigurations = null;
+
+            this._blobServiceClient = new BlobServiceClient("REMOVED");
+            this._blobContainerClient = this._blobServiceClient.GetBlobContainerClient(this._containerName);
+            this._blobContainerClient.CreateIfNotExists();
         }
 
         private bool IsValidConfiguration(ATCSConfiguration config) =>
@@ -157,6 +169,25 @@ namespace atcs_screenshotter
 
                         if (img == null)
                             throw new Exception("Received zero bytes for screenshot.");
+                        
+                        // Upload it to Azure
+                        using (var ms = new MemoryStream(img)) {
+                            var blobClient = this._blobContainerClient.GetBlobClient($"{configuration.blobName}.png");
+                            blobClient.Upload(ms, true);
+
+                            var headers = new Azure.Storage.Blobs.Models.BlobHttpHeaders();
+                            headers.ContentDisposition = "inline";
+                            blobClient.SetHttpHeaders(headers);
+
+                            var sasBuilder = new BlobSasBuilder(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)) {
+                                BlobContainerName = this._containerName,
+                                BlobName = blobClient.Name,
+                                ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("inline").ToString(),
+                                StartsOn = DateTime.UtcNow.AddDays(-1)
+                            };
+
+                            this._logger.LogDebug(blobClient.GenerateSasUri(sasBuilder).ToString());
+                        }
                         
                         // Save it
                         SaveImage(img, $"{configuration.blobName}.png", ImageFormat.Png);
