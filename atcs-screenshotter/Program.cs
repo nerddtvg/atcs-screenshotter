@@ -50,15 +50,13 @@ namespace atcs_screenshotter
             await Host.CreateDefaultBuilder(args)
                 .ConfigureHostConfiguration(configHost => {
                     // Configuration files and settings
-                    configHost.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                    configHost.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
                     configHost.AddEnvironmentVariables();
                     configHost.AddCommandLine(args);
                 }).ConfigureServices((hostContext, services) => {
                     // Always include the console logs
                     services.AddLogging(builder =>
                     {
-                        // Excessive logging limits
-                        builder.SetMinimumLevel(LogLevel.Trace);
                         builder.AddConsole();
                     });
 
