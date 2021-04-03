@@ -406,9 +406,6 @@ namespace atcs_screenshotter
 
                     // If we have already launched this application, do we have a problem?
                     if (configuration._process != null) {
-                        // First, disable auto start
-                        configuration.autoStart = false;
-
                         if (configuration._process.HasExited) {
                             if (configuration._attempts >= this._maxProcessAttempts) {
                                 this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Disabling auto start.");
