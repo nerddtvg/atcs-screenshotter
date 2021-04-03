@@ -278,8 +278,6 @@ namespace atcs_screenshotter
                                     ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("inline").ToString(),
                                     StartsOn = DateTime.UtcNow.AddDays(-1)
                                 };
-
-                                this._logger.LogDebug(blobClient.GenerateSasUri(sasBuilder).ToString());
                             }
                         } else {
                             this._logger.LogDebug("Upload skipped due to configuration.");
