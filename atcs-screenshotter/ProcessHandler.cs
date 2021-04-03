@@ -91,7 +91,7 @@ namespace atcs_screenshotter
         private readonly IConfiguration _configuration;
         private readonly IHostApplicationLifetime _appLifetime;
 
-        private Dictionary<string, System.Threading.Timer> _timer = new Dictionary<string, System.Threading.Timer>();
+        private Dictionary<string, System.Threading.Timer> _timers = new Dictionary<string, System.Threading.Timer>();
 
         // The actual configurations of what screenshots to capture
         private List<ATCSConfiguration> _ATCSConfigurations;
@@ -351,7 +351,7 @@ namespace atcs_screenshotter
                 var state = new TimerState() { configuration = a };
 
                 // We set this to be due in _frequency ms and infinite timeout, then we re-initiate each loop
-                this._timer.Add(a.id, new System.Threading.Timer(CaptureProcess, state, this._frequency, Timeout.Infinite));
+                this._timers.Add(a.id, new System.Threading.Timer(CaptureProcess, state, this._frequency, Timeout.Infinite));
             });
 
             return Task.CompletedTask;
@@ -361,7 +361,7 @@ namespace atcs_screenshotter
         {
             _logger.LogInformation("Timed Hosted Service is stopping.");
 
-            foreach(var val in _timer?.Values)
+            foreach(var val in _timers?.Values)
                 val.Change(Timeout.Infinite, 0);
 
             // Kill off any child processes we launched
@@ -379,7 +379,7 @@ namespace atcs_screenshotter
 
         public override void Dispose()
         {
-            foreach(var val in _timer?.Values)
+            foreach(var val in _timers?.Values)
                 val.Dispose();
 
             this._ATCSConfigurations.ForEach(a => {
@@ -514,7 +514,7 @@ namespace atcs_screenshotter
                 this._logger.LogError(e, $"Uncaught exception in {nameof(CaptureProcess)}.");
             } finally {
                 // Re-initiate the timer
-                this._timer.First(a => a.Key == configuration.id).Value.Change(this._frequency, Timeout.Infinite);
+                this._timers.First(a => a.Key == configuration.id).Value.Change(this._frequency, Timeout.Infinite);
             }
         }
 
