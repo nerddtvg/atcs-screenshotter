@@ -271,13 +271,6 @@ namespace atcs_screenshotter
                                 headers.ContentDisposition = "inline";
                                 headers.ContentType = this._ImageMime;
                                 blobClient.SetHttpHeaders(headers);
-
-                                var sasBuilder = new BlobSasBuilder(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)) {
-                                    BlobContainerName = this._containerName,
-                                    BlobName = blobClient.Name,
-                                    ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("inline").ToString(),
-                                    StartsOn = DateTime.UtcNow.AddDays(-1)
-                                };
                             }
                         } else {
                             this._logger.LogDebug("Upload skipped due to configuration.");
