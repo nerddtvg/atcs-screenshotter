@@ -365,7 +365,7 @@ namespace atcs_screenshotter
             base.Dispose();
         }
 
-        private void CaptureProcess(object state)
+        private async void CaptureProcess(object state)
         {
             var configuration = ((TimerState) state).configuration;
             var cancellationToken = ((TimerState) state).cancellationToken;
@@ -378,7 +378,11 @@ namespace atcs_screenshotter
                 var ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
 
                 // We will attempt to auto start if we have been provided the right information
+                if (ptrs.Count == 0 && configuration.autoStart) {
+                    // Attempt to launch the application and wait 10 seconds to continue
 
+                    await Task.Delay(10000);
+                }
 
                 // If we have more than one, we need to fail out here
                 if (ptrs.Count > 1) {
@@ -403,7 +407,7 @@ namespace atcs_screenshotter
                         if (this._enableUpload) {
                             using (var ms = new MemoryStream(img)) {
                                 var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
-                                blobClient.Upload(ms, true);
+                                await blobClient.UploadAsync(ms, true);
 
                                 var headers = new BlobHttpHeaders();
                                 headers.ContentDisposition = "inline";
