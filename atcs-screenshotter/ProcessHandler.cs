@@ -100,6 +100,12 @@ namespace atcs_screenshotter
         private int _frequency = 5000;
         private int _minFrequency = 1000;
 
+        // Process/Path information
+        private bool _canLaunch = false;
+        private string _ATCSPath;
+        private string _ATCSExecutable;
+        private string _ATCSFullPath;
+
         // Image type handling, these should match at all times
         private readonly ImageFormat _ImageFormat = ImageFormat.Png;
         private readonly string _ImageMime = "image/png";
@@ -141,9 +147,43 @@ namespace atcs_screenshotter
             this._ImageExt = this._ImageFormat.ToString().ToLower();
             if (!string.IsNullOrEmpty(this._ImageExt))
                 this._ImageExt = $".{this._ImageExt}";
+            
+            // Determine if we can actually launch these or not
+            CheckATCSInstallation();
 
             // Setup Azure Storage
             ParseStorageConfiguration();
+        }
+
+        internal void CheckATCSInstallation() {
+            var pathName = nameof(this._ATCSPath).Replace("_", "");
+            var execName = nameof(this._ATCSExecutable).Replace("_", "");
+
+            this._ATCSPath = this._configuration.GetValue<string>(pathName);
+            this._ATCSExecutable = this._configuration.GetValue<string>(execName);
+
+            if (string.IsNullOrEmpty(this._ATCSPath)) {
+                this._logger.LogWarning($"No {pathName} provided for auto start. Auto starts disabled.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(this._ATCSExecutable)) {
+                this._logger.LogWarning($"No {execName} provided for auto start. Auto starts disabled.");
+                return;
+            }
+
+            // Check that this is a valid path
+            try {
+                this._ATCSFullPath = System.IO.Path.Combine(this._ATCSPath, this._ATCSExecutable);
+
+                if (!System.IO.File.Exists(this._ATCSFullPath))
+                    throw new FileNotFoundException("Unable to find the ATCS executable.", this._ATCSFullPath);
+            } catch (Exception e) {
+                this._logger.LogError(e, $"Unable to validate the given path for auto start. Auto starts disabled.");
+                return;
+            }
+
+            this._canLaunch = true;
         }
 
         internal void ParseStorageConfiguration() {
