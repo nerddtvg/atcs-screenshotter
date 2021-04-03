@@ -95,6 +95,7 @@ namespace atcs_screenshotter
         // Image type handling, these should match at all times
         private readonly ImageFormat _ImageFormat = ImageFormat.Png;
         private readonly string _ImageMime = "image/png";
+        private string _ImageExt;
 
         // Azure Storage uploads
         private bool _enableUpload = false;
@@ -110,6 +111,11 @@ namespace atcs_screenshotter
             this._configuration = configuration;
             this._appLifetime = appLifetime;
             this._ATCSConfigurations = null;
+
+            // Configure our image extension
+            this._ImageExt = this._ImageFormat.ToString().ToLower();
+            if (!string.IsNullOrEmpty(this._ImageExt))
+                this._ImageExt = $".{this._ImageExt}";
 
             // Setup Azure Storage
             ParseStorageConfiguration();
@@ -290,12 +296,9 @@ namespace atcs_screenshotter
                             throw new Exception("Received zero bytes for screenshot.");
                         
                         // Determine the filename
-                        var ext = this._ImageFormat.ToString().ToLower();
-                        if (!string.IsNullOrEmpty(ext)) ext = $".{ext}";
-
                         // Keep these separate for now, blob may change down the road
-                        var blobPath = $"{configuration.blobName}{ext}";
-                        var filePath = $"{configuration.blobName}{ext}";
+                        var blobPath = $"{configuration.blobName}{this._ImageExt}".Trim();
+                        var filePath = $"{configuration.blobName}{this._ImageExt}".Trim();
                         
                         // Upload it to Azure
                         if (this._enableUpload) {
