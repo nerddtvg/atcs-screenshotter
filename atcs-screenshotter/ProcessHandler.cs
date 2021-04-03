@@ -92,7 +92,7 @@ namespace atcs_screenshotter
         private readonly IConfiguration _configuration;
         private readonly IHostApplicationLifetime _appLifetime;
 
-        private List<System.Threading.Timer> _timer;
+        private Dictionary<string, System.Threading.Timer> _timer = new Dictionary<string, System.Threading.Timer>();
 
         // The actual configurations of what screenshots to capture
         private List<ATCSConfiguration> _ATCSConfigurations;
@@ -346,14 +346,13 @@ namespace atcs_screenshotter
             // Log this information
             this._logger.LogInformation($"Valid {nameof(ATCSConfiguration)} section found, count: {this._ATCSConfigurations.Count}");
             this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
-            
-            // We need to start tasks for each of the processes we have
-            this._timer = new List<System.Threading.Timer>();
 
             // Go through and start the tasks
             this._ATCSConfigurations.ForEach(a => {
                 var state = new TimerState() { configuration = a };
-                this._timer.Add(new System.Threading.Timer(CaptureProcess, state, TimeSpan.Zero, TimeSpan.FromMilliseconds(this._frequency)));
+
+                // We set this to be due in _frequency ms and infinite timeout, then we re-initiate each loop
+                this._timer.Add(a.id, new System.Threading.Timer(CaptureProcess, state, this._frequency, Timeout.Infinite));
             });
 
             return Task.CompletedTask;
@@ -363,7 +362,8 @@ namespace atcs_screenshotter
         {
             _logger.LogInformation("Timed Hosted Service is stopping.");
 
-            _timer?.ForEach(a => a.Change(Timeout.Infinite, 0));
+            foreach(var val in _timer?.Values)
+                val.Change(Timeout.Infinite, 0);
 
             // Kill off any child processes we launched
             this._ATCSConfigurations.ForEach(a => {
@@ -380,7 +380,9 @@ namespace atcs_screenshotter
 
         public override void Dispose()
         {
-            _timer?.ForEach(a => a.Dispose());
+            foreach(var val in _timer?.Values)
+                val.Dispose();
+
             this._ATCSConfigurations.ForEach(a => {
                 if (a._process != null) a._process.Dispose();
             });
@@ -512,7 +514,8 @@ namespace atcs_screenshotter
             } catch (Exception e) {
                 this._logger.LogError(e, $"Uncaught exception in {nameof(CaptureProcess)}.");
             } finally {
-                
+                // Re-initiate the timer
+                this._timer.First(a => a.Key == configuration.id).Value.Change(this._frequency, Timeout.Infinite);
             }
         }
 
