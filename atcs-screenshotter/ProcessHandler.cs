@@ -103,7 +103,6 @@ namespace atcs_screenshotter
         private readonly string _defaultStorageSuffix = "core.windows.net";
         private BlobServiceClient _blobServiceClient;
         private BlobContainerClient _blobContainerClient;
-        private string _containerName = "atcs";
 
         public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
