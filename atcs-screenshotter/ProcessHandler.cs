@@ -254,7 +254,8 @@ namespace atcs_screenshotter
             this._enableUpload = true;
         }
 
-        private bool IsValidConfiguration(ATCSConfiguration config) =>
+        private bool IsValidConfiguration(ATCSConfiguration config) {
+            var mainCheck = 
             (
                 !string.IsNullOrWhiteSpace(config.id)
                 &&
@@ -263,14 +264,29 @@ namespace atcs_screenshotter
                 !string.IsNullOrWhiteSpace(config.windowTitle)
                 &&
                 !string.IsNullOrWhiteSpace(config.blobName)
-                &&
-                (
-                    // If we are configured to autostart, we must have a profile defined
-                    config.autoStart == false
-                    ||
-                    (config.autoStart == true && !string.IsNullOrWhiteSpace(config.profile))
-                )
             );
+
+            // The main checks need to pass first
+            if (!mainCheck) return false;
+
+            if (config.autoStart == true) {
+                // Make sure we have a profile and the file exists
+                if (string.IsNullOrWhiteSpace(config.profile)) {
+                    this._logger.LogError($"Configuration '{config.id}' has empty or is missing '{nameof(config.profile)}' required for auto start");
+                    return false;
+                }
+
+                var path = System.IO.Path.Combine(new System.IO.FileInfo(this._ATCSFullPath).Directory.FullName, config.profile);
+
+                if (!System.IO.File.Exists(path)) {
+                    var msg = $"Unable to find the profile '{config.profile}' for '{config.id}'.";
+                    this._logger.LogError(new FileNotFoundException(msg, path), msg);
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         protected override Task ExecuteAsync(CancellationToken cancellationToken)
         {
