@@ -119,8 +119,10 @@ namespace atcs_screenshotter
                 var tempFrequency = this._configuration.GetValue<int>(freqName, this._frequency);
 
                 // Did we go below the threshold
-                if (tempFrequency <= this._minFrequency)
+                if (tempFrequency <= this._minFrequency) {
+                    this._logger.LogWarning(new ArgumentOutOfRangeException(freqName), $"Setting '{freqName}' is set too low, minimum is '{this._minFrequency}");
                     tempFrequency = this._minFrequency;
+                }
                 
                 // Set the value
                 this._frequency = tempFrequency;
