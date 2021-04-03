@@ -45,7 +45,9 @@ using System.Diagnostics;
 using PInvoke;
 
 // Azure Storage
+using Azure.Storage;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
 
 namespace atcs_screenshotter
@@ -55,6 +57,19 @@ namespace atcs_screenshotter
         public string processName {get;set;}
         public string windowTitle {get;set;}
         public string blobName {get;set;}
+    }
+
+    public class AzureStorageConfiguration {
+        // Storage Account Name
+        public string accountName {get;set;}
+        // Storage Account Suffix, if required
+        public string suffix {get;set;}
+        // Connection String to use
+        public string connectionString {get;set;}
+        // Access Key to use if no connection string
+        public string accessKey {get;set;}
+        // Container name [REQUIRED]
+        public string containerName {get;set;}
     }
 
     struct TimerState {
@@ -76,6 +91,14 @@ namespace atcs_screenshotter
         // How often in milliseconds we should wait
         private int _frequency = 5000;
 
+        // Image type handling, these should match at all times
+        private readonly ImageFormat _ImageFormat = ImageFormat.Png;
+        private readonly string _ImageMime = "image/png";
+
+        // Azure Storage uploads
+        private bool _enableUpload = false;
+        private AzureStorageConfiguration _AzureStorageConfiguration;
+        private readonly string _defaultStorageSuffix = "core.windows.net";
         private BlobServiceClient _blobServiceClient;
         private BlobContainerClient _blobContainerClient;
         private string _containerName = "atcs";
@@ -87,9 +110,70 @@ namespace atcs_screenshotter
             this._appLifetime = appLifetime;
             this._ATCSConfigurations = null;
 
-            this._blobServiceClient = new BlobServiceClient("REMOVED");
-            this._blobContainerClient = this._blobServiceClient.GetBlobContainerClient(this._containerName);
-            this._blobContainerClient.CreateIfNotExists();
+            // Setup Azure Storage
+            ParseStorageConfiguration();
+        }
+
+        internal void ParseStorageConfiguration() {
+            // This is used to see if we have valid Azure configurations and if so, enable uploads
+            this._AzureStorageConfiguration = this._configuration.GetSection(nameof(AzureStorageConfiguration)).Get<AzureStorageConfiguration>();
+
+            // If we have nothing, skip
+            if (this._AzureStorageConfiguration == null) return;
+
+            // If we don't have a container name, move on
+            if (string.IsNullOrEmpty(this._AzureStorageConfiguration.containerName)) {
+                this._logger.LogError(new ArgumentNullException(nameof(AzureStorageConfiguration) + ":" + nameof(this._AzureStorageConfiguration.containerName)), "No Container Name specified in the storage configuration.");
+                return;
+            }
+
+            try {
+                // If we have a connection string, run with that
+                if (!string.IsNullOrEmpty(this._AzureStorageConfiguration.connectionString)) {
+                    // A connection string should create the client directly
+                    this._blobServiceClient = new BlobServiceClient(this._AzureStorageConfiguration.connectionString);
+                } else if (!string.IsNullOrEmpty(this._AzureStorageConfiguration.accountName) && !string.IsNullOrEmpty(this._AzureStorageConfiguration.accessKey)) {
+                    var credential = new StorageSharedKeyCredential(this._AzureStorageConfiguration.accountName, this._AzureStorageConfiguration.accessKey);
+
+                    // Check for the suffix
+                    var suffix = !string.IsNullOrEmpty(this._AzureStorageConfiguration.suffix) ? this._AzureStorageConfiguration.suffix : this._defaultStorageSuffix;
+
+                    // Make sure we trim off the beginning period if it exists
+                    if (suffix.Substring(0, 1) == ".")
+                        suffix = suffix.Substring(1);
+
+                    // Build the URI
+                    var blobUri = new UriBuilder();
+                    blobUri.Scheme = "https";
+                    blobUri.Host = $"{this._AzureStorageConfiguration.accountName}.blob.{suffix}";
+
+                    // Create the client
+                    this._blobServiceClient = new BlobServiceClient(blobUri.Uri, credential);
+                } else {
+                    this._logger.LogError(new ArgumentNullException(nameof(AzureStorageConfiguration)), "No Connection String or no valid combination of Account Name and Access Key provided in the storage configuration.");
+                    return;
+                }
+            } catch (Exception e) {
+                this._logger.LogError(e, "Unable to create the BlobServiceClient");
+                return;
+            }
+
+            // Now we need to create the BlobContainerClient
+            try {
+                this._blobContainerClient = this._blobServiceClient.GetBlobContainerClient(this._AzureStorageConfiguration.containerName);
+
+                // Check that our container exists
+                this._blobContainerClient.CreateIfNotExists();
+
+                // Double check that worked and didn't throw an error
+                if (!this._blobContainerClient.Exists())
+                    throw new Exception("Unable to create the container but no Azure error thrown.");
+            } catch (Exception e) {
+                this._logger.LogError(e, "Unable to create the BlobContainerClient or could not create the container.");
+                return;
+            }
+
+            this._enableUpload = true;
         }
 
         private bool IsValidConfiguration(ATCSConfiguration config) =>
@@ -171,26 +255,31 @@ namespace atcs_screenshotter
                             throw new Exception("Received zero bytes for screenshot.");
                         
                         // Upload it to Azure
-                        using (var ms = new MemoryStream(img)) {
-                            var blobClient = this._blobContainerClient.GetBlobClient($"{configuration.blobName}.png");
-                            blobClient.Upload(ms, true);
+                        if (this._enableUpload) {
+                            using (var ms = new MemoryStream(img)) {
+                                var blobClient = this._blobContainerClient.GetBlobClient($"{configuration.blobName}.png");
+                                blobClient.Upload(ms, true);
 
-                            var headers = new Azure.Storage.Blobs.Models.BlobHttpHeaders();
-                            headers.ContentDisposition = "inline";
-                            blobClient.SetHttpHeaders(headers);
+                                var headers = new BlobHttpHeaders();
+                                headers.ContentDisposition = "inline";
+                                headers.ContentType = this._ImageMime;
+                                blobClient.SetHttpHeaders(headers);
 
-                            var sasBuilder = new BlobSasBuilder(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)) {
-                                BlobContainerName = this._containerName,
-                                BlobName = blobClient.Name,
-                                ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("inline").ToString(),
-                                StartsOn = DateTime.UtcNow.AddDays(-1)
-                            };
+                                var sasBuilder = new BlobSasBuilder(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)) {
+                                    BlobContainerName = this._containerName,
+                                    BlobName = blobClient.Name,
+                                    ContentDisposition = new System.Net.Http.Headers.ContentDispositionHeaderValue("inline").ToString(),
+                                    StartsOn = DateTime.UtcNow.AddDays(-1)
+                                };
 
-                            this._logger.LogDebug(blobClient.GenerateSasUri(sasBuilder).ToString());
+                                this._logger.LogDebug(blobClient.GenerateSasUri(sasBuilder).ToString());
+                            }
+                        } else {
+                            this._logger.LogDebug("Upload skipped due to configuration.");
                         }
                         
                         // Save it
-                        SaveImage(img, $"{configuration.blobName}.png", ImageFormat.Png);
+                        SaveImage(img, $"{configuration.blobName}.png", this._ImageFormat);
                         this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
                     } catch (Exception e) {
                         this._logger.LogError(e, $"Exception thrown while capturing the window for '{configuration.windowTitle}': {e.Message}");
