@@ -118,6 +118,10 @@ namespace atcs_screenshotter
         private BlobServiceClient _blobServiceClient;
         private BlobContainerClient _blobContainerClient;
 
+        // Maximum wait time to upload files
+        // Keeps things moving if it stalls out
+        internal int _maxUploadTime = 5000;
+
         public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
             this._logger = logger;
@@ -406,15 +410,24 @@ namespace atcs_screenshotter
                         // Upload it to Azure
                         if (this._enableUpload) {
                             using (var ms = new MemoryStream(img)) {
-                                var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
-                                await blobClient.UploadAsync(ms, true);
+                                using(var ctx = new CancellationTokenSource()) {
+                                    // Set our maximum upload time
+                                    ctx.CancelAfter(this._maxUploadTime);
 
-                                var headers = new BlobHttpHeaders();
-                                headers.ContentDisposition = "inline";
-                                headers.ContentType = this._ImageMime;
-                                blobClient.SetHttpHeaders(headers);
-                                
-                                this._logger.LogInformation($"Blob '{blobPath}' saved for configuration '{configuration.id}'.");
+                                    try {
+                                        var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
+                                        await blobClient.UploadAsync(ms, true, ctx.Token);
+                                        
+                                        var headers = new BlobHttpHeaders();
+                                        headers.ContentDisposition = "inline";
+                                        headers.ContentType = this._ImageMime;
+                                        blobClient.SetHttpHeaders(headers);
+                                        
+                                        this._logger.LogInformation($"Blob '{blobPath}' saved for configuration '{configuration.id}'.");
+                                    } catch (TaskCanceledException e) {
+                                        this._logger.LogError(e, $"Blob '{blobPath}' took too long to upload, cancelled.");
+                                    }
+                                }
                             }
                         } else {
                             this._logger.LogDebug("Upload skipped due to configuration.");
