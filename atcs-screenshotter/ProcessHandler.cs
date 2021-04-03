@@ -91,6 +91,7 @@ namespace atcs_screenshotter
 
         // How often in milliseconds we should wait
         private int _frequency = 5000;
+        private int _minFrequency = 1000;
 
         // Image type handling, these should match at all times
         private readonly ImageFormat _ImageFormat = ImageFormat.Png;
@@ -110,6 +111,22 @@ namespace atcs_screenshotter
             this._configuration = configuration;
             this._appLifetime = appLifetime;
             this._ATCSConfigurations = null;
+
+            // Do we have a frequency?
+            try {
+                // Get the value
+                var freqName = nameof(this._frequency).Replace("_", "");
+                var tempFrequency = this._configuration.GetValue<int>(freqName, this._frequency);
+
+                // Did we go below the threshold
+                if (tempFrequency <= this._minFrequency)
+                    tempFrequency = this._minFrequency;
+                
+                // Set the value
+                this._frequency = tempFrequency;
+
+                this._logger.LogDebug($"Screenshot frequency: {this._frequency} ms");
+            } catch {}
 
             // Configure our image extension
             this._ImageExt = this._ImageFormat.ToString().ToLower();
