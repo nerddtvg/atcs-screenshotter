@@ -299,6 +299,8 @@ namespace atcs_screenshotter
                                 headers.ContentDisposition = "inline";
                                 headers.ContentType = this._ImageMime;
                                 blobClient.SetHttpHeaders(headers);
+                                
+                                this._logger.LogInformation($"Blob '{configuration.blobName}' saved for configuration '{configuration.id}'.");
                             }
                         } else {
                             this._logger.LogDebug("Upload skipped due to configuration.");
