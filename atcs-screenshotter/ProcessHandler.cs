@@ -86,7 +86,7 @@ namespace atcs_screenshotter
 
         private List<System.Threading.Timer> _timer;
 
-        private readonly string _ATCSConfigurationName = "ATCSConfiguration";
+        // The actual configurations of what screenshots to capture
         private List<ATCSConfiguration> _ATCSConfigurations;
 
         // How often in milliseconds we should wait
@@ -189,23 +189,51 @@ namespace atcs_screenshotter
         protected override Task ExecuteAsync(CancellationToken cancellationToken)
         {
             // Get our configuration information
-            this._ATCSConfigurations = this._configuration.GetSection(this._ATCSConfigurationName).Get<List<ATCSConfiguration>>();
+            this._ATCSConfigurations = this._configuration.GetSection(nameof(ATCSConfiguration)).Get<List<ATCSConfiguration>>();
 
             // Remove any bad configurations
             if (this._ATCSConfigurations != null) {
                 var remove = this._ATCSConfigurations.Where(a => !IsValidConfiguration(a)).ToList();
                 remove.ForEach(a => {
-                    this._logger.LogWarning($"Invalid {this._ATCSConfigurationName} configuration: {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._logger.LogWarning($"Invalid {nameof(ATCSConfiguration)} configuration: {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._ATCSConfigurations.Remove(a);
+                });
+
+                // Check if we have any that have duplicate ids or blobNames
+                var ids = this._ATCSConfigurations
+                    .Select(a => a.id)
+                    .GroupBy(a => a)
+                    .Where(a => a.Count() > 1)
+                    .Select(a => a.Key)
+                    .ToList();
+                
+                remove = this._ATCSConfigurations.Where(a => ids.Contains(a.id)).ToList();
+                remove.ForEach(a => {
+                    this._logger.LogWarning($"Duplicate {nameof(ATCSConfiguration)} configuration '{nameof(ATCSConfiguration.id)}': {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._ATCSConfigurations.Remove(a);
+                });
+
+                // blobNames?
+                var blobNames = this._ATCSConfigurations
+                    .Select(a => a.blobName)
+                    .GroupBy(a => a)
+                    .Where(a => a.Count() > 1)
+                    .Select(a => a.Key)
+                    .ToList();
+                
+                remove = this._ATCSConfigurations.Where(a => blobNames.Contains(a.blobName)).ToList();
+                remove.ForEach(a => {
+                    this._logger.LogWarning($"Duplicate {nameof(ATCSConfiguration)} configuration '{nameof(ATCSConfiguration.blobName)}': {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
                     this._ATCSConfigurations.Remove(a);
                 });
             }
 
             // Make sure we have good configurations
             if (this._ATCSConfigurations == null || this._ATCSConfigurations.Count == 0)
-                throw new Exception($"No {this._ATCSConfigurationName} configuration found.");
+                throw new Exception($"No {nameof(ATCSConfiguration)} configuration found.");
 
             // Log this information
-            this._logger.LogInformation($"Valid {this._ATCSConfigurationName} section found, count: {this._ATCSConfigurations.Count}");
+            this._logger.LogInformation($"Valid {nameof(ATCSConfiguration)} section found, count: {this._ATCSConfigurations.Count}");
             this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
             
             // We need to start tasks for each of the processes we have
