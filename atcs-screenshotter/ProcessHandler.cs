@@ -360,6 +360,12 @@ namespace atcs_screenshotter
 
             _timer?.ForEach(a => a.Change(Timeout.Infinite, 0));
 
+            // Kill off any child processes we launched
+            this._ATCSConfigurations.ForEach(a => {
+                if (a._process != null && !a._process.HasExited)
+                    a._process.Kill();
+            });
+
             return base.StopAsync(stoppingToken);
         }
 
