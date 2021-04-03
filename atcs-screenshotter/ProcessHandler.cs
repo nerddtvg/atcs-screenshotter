@@ -289,10 +289,18 @@ namespace atcs_screenshotter
                         if (img == null)
                             throw new Exception("Received zero bytes for screenshot.");
                         
+                        // Determine the filename
+                        var ext = this._ImageFormat.ToString().ToLower();
+                        if (!string.IsNullOrEmpty(ext)) ext = $".{ext}";
+
+                        // Keep these separate for now, blob may change down the road
+                        var blobPath = $"{configuration.blobName}{ext}";
+                        var filePath = $"{configuration.blobName}{ext}";
+                        
                         // Upload it to Azure
                         if (this._enableUpload) {
                             using (var ms = new MemoryStream(img)) {
-                                var blobClient = this._blobContainerClient.GetBlobClient($"{configuration.blobName}.png");
+                                var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
                                 blobClient.Upload(ms, true);
 
                                 var headers = new BlobHttpHeaders();
@@ -300,7 +308,7 @@ namespace atcs_screenshotter
                                 headers.ContentType = this._ImageMime;
                                 blobClient.SetHttpHeaders(headers);
                                 
-                                this._logger.LogInformation($"Blob '{configuration.blobName}' saved for configuration '{configuration.id}'.");
+                                this._logger.LogInformation($"Blob '{blobPath}' saved for configuration '{configuration.id}'.");
                             }
                         } else {
                             this._logger.LogDebug("Upload skipped due to configuration.");
@@ -308,8 +316,8 @@ namespace atcs_screenshotter
                         
                         // Save it
                         if (configuration.saveFile) {
-                            SaveImage(img, $"{configuration.blobName}.png", this._ImageFormat);
-                            this._logger.LogDebug($"File '{configuration.blobName}.png' saved for configuration '{configuration.id}'.");
+                            SaveImage(img, filePath, this._ImageFormat);
+                            this._logger.LogDebug($"File '{filePath}' saved for configuration '{configuration.id}'.");
                         } else {
                             this._logger.LogDebug("Save file skipped due to configuration.");
                         }
