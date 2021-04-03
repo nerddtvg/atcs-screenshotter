@@ -105,6 +105,8 @@ namespace atcs_screenshotter
         private string _ATCSPath;
         private string _ATCSExecutable;
         private string _ATCSFullPath;
+        // How long do we wait after starting the process to search for a window?
+        private int _processLaunchTime = 5000;
 
         // Image type handling, these should match at all times
         private readonly ImageFormat _ImageFormat = ImageFormat.Png;
@@ -412,7 +414,10 @@ namespace atcs_screenshotter
                             if (configuration._process == null)
                                 throw new Exception("Error auto starting the process but no exception provided.");
 
-                            await Task.Delay(10000);
+                            await Task.Delay(this._processLaunchTime);
+
+                            // Attempt to find the windows again
+                            ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
                         } catch (Exception e) {
                             this._logger.LogError(e, $"Unable to auto start the process for configuration '{configuration.id}', auto start disabled.");
                             configuration.autoStart = false;
