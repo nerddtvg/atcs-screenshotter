@@ -65,6 +65,7 @@ namespace atcs_screenshotter
 
         // These are used by our program and not for configurations
         public Process _process {get;set;}
+        public int _attempts {get;set;} = 0;
     }
 
     public class AzureStorageConfiguration {
@@ -107,6 +108,8 @@ namespace atcs_screenshotter
         private string _ATCSFullPath;
         // How long do we wait after starting the process to search for a window?
         private int _processLaunchTime = 5000;
+        // How many times will we attempt to launch this process?
+        private int _maxProcessAttempts = 5;
 
         // Image type handling, these should match at all times
         private readonly ImageFormat _ImageFormat = ImageFormat.Png;
@@ -364,8 +367,12 @@ namespace atcs_screenshotter
 
             // Kill off any child processes we launched
             this._ATCSConfigurations.ForEach(a => {
-                if (a._process != null && !a._process.HasExited)
-                    a._process.Kill();
+                if (a._process != null) {
+                    if (!a._process.HasExited)
+                        a._process.Kill();
+
+                    a._process.Dispose();
+                }
             });
 
             return base.StopAsync(stoppingToken);
@@ -374,6 +381,10 @@ namespace atcs_screenshotter
         public override void Dispose()
         {
             _timer?.ForEach(a => a.Dispose());
+            this._ATCSConfigurations.ForEach(a => {
+                if (a._process != null) a._process.Dispose();
+            });
+
             base.Dispose();
         }
 
@@ -399,16 +410,34 @@ namespace atcs_screenshotter
                         configuration.autoStart = false;
 
                         if (configuration._process.HasExited) {
-                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Disabling auto start.");
+                            if (configuration._attempts >= this._maxProcessAttempts) {
+                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Disabling auto start.");
+                                configuration.autoStart = false;
+                                return;
+                            }
+
+                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' has exited prematurely. Will re-attempt.");
                         } else {
                             // So we have launched a process but we don't have a window, this is a failure
                             configuration._process.Kill();
-                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id} killed.");
+
+                            if (configuration._attempts >= this._maxProcessAttempts) {
+                                this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id} killed. Disabling auto start");
+                                configuration.autoStart = false;
+                                return;
+                            }
+
+                            this._logger.LogError($"Auto started process for configuration '{configuration.id}' was launched but no corresponding window found. Process '{configuration._process.Id} killed. Will re-attempt.");
                         }
+
+                        configuration._process.Dispose();
                     } else {
                         // The process expects just the profile file name that exists in its own directory
                         try {
                             configuration._process = Process.Start(this._ATCSFullPath, new List<string>() { configuration.profile });
+
+                            // Increment our counter
+                            configuration._attempts++;
 
                             // If we have a null response, it failed to start
                             if (configuration._process == null)
