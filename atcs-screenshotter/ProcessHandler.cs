@@ -350,8 +350,8 @@ namespace atcs_screenshotter
             this._ATCSConfigurations.ForEach(a => {
                 var state = new TimerState() { configuration = a };
 
-                // We set this to be due in _frequency ms and infinite timeout, then we re-initiate each loop
-                this._timers.Add(a.id, new System.Threading.Timer(CaptureProcess, state, this._frequency, Timeout.Infinite));
+                // We set this to be due now (forces it to run immediately) and infinite timeout, then we re-initiate each loop with this._frequency
+                this._timers.Add(a.id, new System.Threading.Timer(CaptureProcess, state, 0, Timeout.Infinite));
             });
 
             return Task.CompletedTask;
