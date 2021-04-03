@@ -255,7 +255,22 @@ namespace atcs_screenshotter
         }
 
         private bool IsValidConfiguration(ATCSConfiguration config) =>
-            (!string.IsNullOrWhiteSpace(config.id) && !string.IsNullOrWhiteSpace(config.processName) && !string.IsNullOrWhiteSpace(config.windowTitle) && !string.IsNullOrWhiteSpace(config.blobName));
+            (
+                !string.IsNullOrWhiteSpace(config.id)
+                &&
+                !string.IsNullOrWhiteSpace(config.processName)
+                &&
+                !string.IsNullOrWhiteSpace(config.windowTitle)
+                &&
+                !string.IsNullOrWhiteSpace(config.blobName)
+                &&
+                (
+                    // If we are configured to autostart, we must have a profile defined
+                    config.autoStart == false
+                    ||
+                    (config.autoStart == true && !string.IsNullOrWhiteSpace(config.profile))
+                )
+            );
 
         protected override Task ExecuteAsync(CancellationToken cancellationToken)
         {
@@ -345,6 +360,9 @@ namespace atcs_screenshotter
 
                 // Find the pointer(s) for this window
                 var ptrs = WindowFilter.FindWindowsWithText(configuration.windowTitle, true).ToList();
+
+                // We will attempt to auto start if we have been provided the right information
+
 
                 // If we have more than one, we need to fail out here
                 if (ptrs.Count > 1) {
