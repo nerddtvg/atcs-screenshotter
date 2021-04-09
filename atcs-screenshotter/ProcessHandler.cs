@@ -126,6 +126,11 @@ namespace atcs_screenshotter
         // Keeps things moving if it stalls out
         internal int _maxUploadTime = 5000;
 
+        // Information on how we update our helper JS object
+        private int _updateFrequency = 30000;
+        private int _minUpdateFrequency = 5000;
+        private string _updateFile = "index.js";
+
         // This is a dictionary of the last time we got a successful update
         internal Dictionary<string, DateTimeOffset?> _lastUpdate = new Dictionary<string, DateTimeOffset?>();
 
@@ -152,6 +157,24 @@ namespace atcs_screenshotter
                 this._frequency = tempFrequency;
 
                 this._logger.LogDebug($"Screenshot frequency: {this._frequency} ms");
+            } catch {}
+
+            // Do we have an file update frequency?
+            try {
+                // Get the value
+                var freqName = nameof(this._updateFrequency).Replace("_", "");
+                var tempFrequency = this._configuration.GetValue<int>(freqName, this._updateFrequency);
+
+                // Did we go below the threshold
+                if (tempFrequency <= this._minUpdateFrequency) {
+                    this._logger.LogWarning(new ArgumentOutOfRangeException(freqName), $"Setting '{freqName}' is set too low, minimum is '{this._minUpdateFrequency}");
+                    tempFrequency = this._minUpdateFrequency;
+                }
+                
+                // Set the value
+                this._updateFrequency = tempFrequency;
+
+                this._logger.LogDebug($"File update frequency: {this._updateFrequency} ms");
             } catch {}
 
             // Configure our image extension
@@ -348,6 +371,9 @@ namespace atcs_screenshotter
             // Log this information
             this._logger.LogInformation($"Valid {nameof(ATCSConfiguration)} section found, count: {this._ATCSConfigurations.Count}");
             this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
+
+            // Adding a timer to update our JS helper file
+            this._timers.Add("")
 
             // Go through and start the tasks
             this._ATCSConfigurations.ForEach(a => {
