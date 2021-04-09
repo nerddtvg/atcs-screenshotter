@@ -126,6 +126,9 @@ namespace atcs_screenshotter
         // Keeps things moving if it stalls out
         internal int _maxUploadTime = 5000;
 
+        // This is a dictionary of the last time we got a successful update
+        internal Dictionary<string, DateTimeOffset?> _lastUpdate = new Dictionary<string, DateTimeOffset?>();
+
         public ProcessHandler(ILogger<ProcessHandler> logger, IConfiguration configuration, IHostApplicationLifetime appLifetime)
         {
             this._logger = logger;
@@ -348,7 +351,11 @@ namespace atcs_screenshotter
 
             // Go through and start the tasks
             this._ATCSConfigurations.ForEach(a => {
+                // The state object the timer will use to keep things sorted
                 var state = new TimerState() { configuration = a };
+
+                // Set this up for updates
+                this._lastUpdate.Add(a.id, null);
 
                 // We set this to be due now (forces it to run immediately) and infinite timeout, then we re-initiate each loop with this._frequency
                 this._timers.Add(a.id, new System.Threading.Timer(CaptureProcess, state, 0, Timeout.Infinite));
