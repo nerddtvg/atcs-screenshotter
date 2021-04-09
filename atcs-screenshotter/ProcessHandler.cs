@@ -79,6 +79,8 @@ namespace atcs_screenshotter
         public string accessKey {get;set;}
         // Container name [REQUIRED]
         public string containerName {get;set;}
+        // Helper JS file container name
+        public string updateContainerName {get;set;}
     }
 
     struct TimerState {
@@ -129,8 +131,8 @@ namespace atcs_screenshotter
         // Information on how we update our helper JS object
         private int _updateFrequency = 30000;
         private int _minUpdateFrequency = 5000;
-        private string _updateContainer = "$web";
         private string _updateFile = "index.js";
+        private BlobContainerClient _updateBlobContainerClient;
 
         // This is a dictionary of the last time we got a successful update
         internal Dictionary<string, DateTimeOffset?> _lastUpdate = new Dictionary<string, DateTimeOffset?>();
@@ -280,6 +282,21 @@ namespace atcs_screenshotter
 
                 // Double check that worked and didn't throw an error
                 if (!this._blobContainerClient.Exists())
+                    throw new Exception("Unable to create the container but no Azure error thrown.");
+            } catch (Exception e) {
+                this._logger.LogError(e, "Unable to create the BlobContainerClient or could not create the container.");
+                return;
+            }
+
+            // Now we need to create the BlobContainerClient
+            try {
+                this._updateBlobContainerClient = this._blobServiceClient.GetBlobContainerClient(this._AzureStorageConfiguration.updateContainerName);
+
+                // Check that our container exists
+                this._updateBlobContainerClient.CreateIfNotExists();
+
+                // Double check that worked and didn't throw an error
+                if (!this._updateBlobContainerClient.Exists())
                     throw new Exception("Unable to create the container but no Azure error thrown.");
             } catch (Exception e) {
                 this._logger.LogError(e, "Unable to create the BlobContainerClient or could not create the container.");
