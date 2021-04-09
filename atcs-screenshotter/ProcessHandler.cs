@@ -132,6 +132,7 @@ namespace atcs_screenshotter
         private int _updateFrequency = 30000;
         private int _minUpdateFrequency = 5000;
         private string _updateFile = "index.js";
+        private string _updateTimerId = "UpdateTimer";
         private BlobContainerClient _updateBlobContainerClient;
 
         // This is a dictionary of the last time we got a successful update
@@ -391,7 +392,8 @@ namespace atcs_screenshotter
             this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
 
             // Adding a timer to update our JS helper file
-            this._timers.Add("")
+            if (this._enableUpload)
+                this._timers.Add(this._updateTimerId, new System.Threading.Timer(UpdateTimerAction, null, this._updateFrequency, this._updateFrequency));
 
             // Go through and start the tasks
             this._ATCSConfigurations.ForEach(a => {
@@ -438,6 +440,15 @@ namespace atcs_screenshotter
             });
 
             base.Dispose();
+        }
+
+        private async void UpdateTimerAction(object state)
+        {
+            // What we need to do to update our update file on a regular basis
+            // We want to know anything that has had an update within the past 10 update intervals
+            this._logger.LogDebug($"Entering UpdateTimerAction()");
+            await Task.Delay(10000);
+            this._logger.LogDebug($"Completed UpdateTimerAction()");
         }
 
         private async void CaptureProcess(object state)
