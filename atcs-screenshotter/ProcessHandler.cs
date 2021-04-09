@@ -129,6 +129,7 @@ namespace atcs_screenshotter
         // Information on how we update our helper JS object
         private int _updateFrequency = 30000;
         private int _minUpdateFrequency = 5000;
+        private string _updateContainer = "$web";
         private string _updateFile = "index.js";
 
         // This is a dictionary of the last time we got a successful update
