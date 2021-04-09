@@ -482,7 +482,7 @@ namespace atcs_screenshotter
                 if (configEntry == default(ATCSConfiguration)) continue;
 
                 // Generate the SAS URL expires in one day
-                var blobObject = this._blobContainerClient.GetBlobClient(configEntry.blobName);
+                var blobObject = this._blobContainerClient.GetBlobClient($"{configEntry.blobName}{this._ImageExt}".Trim());
 
                 // Add it to the list
                 obj.entries.Add(new UpdateFileEntry()
@@ -497,7 +497,13 @@ namespace atcs_screenshotter
             // Serialize this to JSON
             var json = JsonSerializer.Serialize<UpdateFile>(obj);
 
-            this._logger.LogWarning(json);
+            // Now we upload this file
+            var updateClient = this._updateBlobContainerClient.GetBlobClient(this._updateFile);
+
+            using (var ms = new MemoryStream(Encoding.Unicode.GetBytes(json)))
+            {
+                await updateClient.UploadAsync(ms);
+            }
 
             this._logger.LogDebug($"Completed UpdateTimerAction()");
         }
