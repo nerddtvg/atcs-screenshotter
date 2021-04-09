@@ -479,7 +479,10 @@ namespace atcs_screenshotter
                         // Keep these separate for now, blob may change down the road
                         var blobPath = $"{configuration.blobName}{this._ImageExt}".Trim();
                         var filePath = $"{configuration.blobName}{this._ImageExt}".Trim();
-                        
+
+                        // Note that we have something recent
+                        this._lastUpdate[configuration.id] = DateTimeOffset.UtcNow;
+
                         // Upload it to Azure
                         if (this._enableUpload) {
                             using (var ms = new MemoryStream(img)) {
