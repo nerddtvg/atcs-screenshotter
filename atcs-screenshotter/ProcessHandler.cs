@@ -39,6 +39,9 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 
+// JSON Serializer
+using System.Text.Json;
+
 // Processes
 using System.Diagnostics;
 
@@ -54,6 +57,7 @@ namespace atcs_screenshotter
 {
     public class ATCSConfiguration {
         public string id {get;set;}
+        public string name { get; set; }
         public string processName {get;set;}
         public string windowTitle {get;set;}
         public string blobName {get;set;}
@@ -81,6 +85,19 @@ namespace atcs_screenshotter
         public string containerName {get;set;}
         // Helper JS file container name
         public string updateContainerName {get;set;}
+    }
+
+    // This is the update file structure
+    public struct UpdateFile {
+        public List<UpdateFileEntry> entries { get; set; }
+    }
+
+    // Entries for each file
+    public struct UpdateFileEntry {
+        public string id { get; set; }
+        public string name { get; set; }
+        public string sas { get; set; }
+        public DateTimeOffset date { get; set; }
     }
 
     struct TimerState {
@@ -350,7 +367,7 @@ namespace atcs_screenshotter
             if (this._ATCSConfigurations != null) {
                 var remove = this._ATCSConfigurations.Where(a => !IsValidConfiguration(a)).ToList();
                 remove.ForEach(a => {
-                    this._logger.LogWarning($"Invalid {nameof(ATCSConfiguration)} configuration: {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._logger.LogWarning($"Invalid {nameof(ATCSConfiguration)} configuration: {JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
                     this._ATCSConfigurations.Remove(a);
                 });
 
@@ -364,7 +381,7 @@ namespace atcs_screenshotter
                 
                 remove = this._ATCSConfigurations.Where(a => ids.Contains(a.id)).ToList();
                 remove.ForEach(a => {
-                    this._logger.LogWarning($"Duplicate {nameof(ATCSConfiguration)} configuration '{nameof(ATCSConfiguration.id)}': {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._logger.LogWarning($"Duplicate {nameof(ATCSConfiguration)} configuration '{nameof(ATCSConfiguration.id)}': {JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
                     this._ATCSConfigurations.Remove(a);
                 });
 
@@ -378,7 +395,7 @@ namespace atcs_screenshotter
                 
                 remove = this._ATCSConfigurations.Where(a => blobNames.Contains(a.blobName)).ToList();
                 remove.ForEach(a => {
-                    this._logger.LogWarning($"Duplicate {nameof(ATCSConfiguration)} configuration '{nameof(ATCSConfiguration.blobName)}': {System.Text.Json.JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
+                    this._logger.LogWarning($"Duplicate {nameof(ATCSConfiguration)} configuration '{nameof(ATCSConfiguration.blobName)}': {JsonSerializer.Serialize(a, typeof(ATCSConfiguration))}");
                     this._ATCSConfigurations.Remove(a);
                 });
             }
@@ -389,7 +406,7 @@ namespace atcs_screenshotter
 
             // Log this information
             this._logger.LogInformation($"Valid {nameof(ATCSConfiguration)} section found, count: {this._ATCSConfigurations.Count}");
-            this._logger.LogDebug($"Valid Configurations: {System.Text.Json.JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
+            this._logger.LogDebug($"Valid Configurations: {JsonSerializer.Serialize(this._ATCSConfigurations, typeof(List<ATCSConfiguration>))}");
 
             // Adding a timer to update our JS helper file
             if (this._enableUpload)
@@ -447,7 +464,41 @@ namespace atcs_screenshotter
             // What we need to do to update our update file on a regular basis
             // We want to know anything that has had an update within the past 10 update intervals
             this._logger.LogDebug($"Entering UpdateTimerAction()");
-            await Task.Delay(10000);
+
+            // Get the object we're going to upload
+            UpdateFile obj = new UpdateFile();
+            obj.entries = new List<UpdateFileEntry>();
+
+            // Determine which entries we are going to add
+            var entries = this._lastUpdate
+                .Where(a => a.Value.HasValue && a.Value.Value >= DateTimeOffset.UtcNow.AddMilliseconds(-10 * this._updateFrequency))
+                .ToList();
+            
+            foreach(var entry in entries) {
+                // Get this configuration
+                var configEntry = this._ATCSConfigurations.FirstOrDefault(a => a.id == entry.Key);
+
+                // Ensure we have a configuration
+                if (configEntry == default(ATCSConfiguration)) continue;
+
+                // Generate the SAS URL expires in one day
+                var blobObject = this._blobContainerClient.GetBlobClient(configEntry.blobName);
+
+                // Add it to the list
+                obj.entries.Add(new UpdateFileEntry()
+                {
+                    id = entry.Key,
+                    date = entry.Value.Value,
+                    name = configEntry.name,
+                    sas = blobObject.GenerateSasUri(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)).ToString()
+                });
+            }
+
+            // Serialize this to JSON
+            var json = JsonSerializer.Serialize<UpdateFile>(obj);
+
+            this._logger.LogWarning(json);
+
             this._logger.LogDebug($"Completed UpdateTimerAction()");
         }
 
