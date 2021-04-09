@@ -465,45 +465,49 @@ namespace atcs_screenshotter
             // We want to know anything that has had an update within the past 10 update intervals
             this._logger.LogDebug($"Entering UpdateTimerAction()");
 
-            // Get the object we're going to upload
-            UpdateFile obj = new UpdateFile();
-            obj.entries = new List<UpdateFileEntry>();
-
-            // Determine which entries we are going to add
-            var entries = this._lastUpdate
-                .Where(a => a.Value.HasValue && a.Value.Value >= DateTimeOffset.UtcNow.AddMilliseconds(-10 * this._updateFrequency))
-                .ToList();
-            
-            foreach(var entry in entries) {
-                // Get this configuration
-                var configEntry = this._ATCSConfigurations.FirstOrDefault(a => a.id == entry.Key);
-
-                // Ensure we have a configuration
-                if (configEntry == default(ATCSConfiguration)) continue;
-
-                // Generate the SAS URL expires in one day
-                var blobObject = this._blobContainerClient.GetBlobClient($"{configEntry.blobName}{this._ImageExt}".Trim());
-
-                // Add it to the list
-                obj.entries.Add(new UpdateFileEntry()
-                {
-                    id = entry.Key,
-                    date = entry.Value.Value,
-                    name = configEntry.name,
-                    sas = blobObject.GenerateSasUri(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)).ToString()
-                });
-            }
-
-            // Serialize this to JSON
-            var json = JsonSerializer.Serialize<UpdateFile>(obj);
-
-            // Now we upload this file
-            var updateClient = this._updateBlobContainerClient.GetBlobClient(this._updateFile);
-
-            using (var ms = new MemoryStream(Encoding.Unicode.GetBytes(json)))
+            try
             {
-                await updateClient.UploadAsync(ms);
-            }
+                // Get the object we're going to upload
+                UpdateFile obj = new UpdateFile();
+                obj.entries = new List<UpdateFileEntry>();
+
+                // Determine which entries we are going to add
+                var entries = this._lastUpdate
+                    .Where(a => a.Value.HasValue && a.Value.Value >= DateTimeOffset.UtcNow.AddMilliseconds(-10 * this._updateFrequency))
+                    .ToList();
+
+                foreach (var entry in entries)
+                {
+                    // Get this configuration
+                    var configEntry = this._ATCSConfigurations.FirstOrDefault(a => a.id == entry.Key);
+
+                    // Ensure we have a configuration
+                    if (configEntry == default(ATCSConfiguration)) continue;
+
+                    // Generate the SAS URL expires in one day
+                    var blobObject = this._blobContainerClient.GetBlobClient($"{configEntry.blobName}{this._ImageExt}".Trim());
+
+                    // Add it to the list
+                    obj.entries.Add(new UpdateFileEntry()
+                    {
+                        id = entry.Key,
+                        date = entry.Value.Value,
+                        name = configEntry.name,
+                        sas = blobObject.GenerateSasUri(BlobSasPermissions.Read, DateTimeOffset.UtcNow.AddDays(1)).ToString()
+                    });
+                }
+
+                // Serialize this to JSON
+                var json = JsonSerializer.Serialize<UpdateFile>(obj);
+
+                // Now we upload this file
+                var updateClient = this._updateBlobContainerClient.GetBlobClient(this._updateFile);
+
+                using (var ms = new MemoryStream(Encoding.Unicode.GetBytes(json)))
+                {
+                    await updateClient.UploadAsync(ms);
+                }
+            } catch { }
 
             this._logger.LogDebug($"Completed UpdateTimerAction()");
         }
