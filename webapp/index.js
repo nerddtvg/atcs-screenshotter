@@ -23,7 +23,12 @@ function updateCallback(data) {
         aItem = $("<div id='" + collapseId + "' class='accordion-collapse collapse' aria-labelledby='" + id + "' data-bs-parent='#mainAccordion'><div class='accordion-body'><span style='display:inline-block'><img src='" + item.sas + "' data-original-uri='" + item.sas + "' class='img-fluid' alt='ATCS Screenshot' /></span></div></div>");
         el.append(aItem);
 
-        $("div#" + collapseId + " span").zoom();
+        $("div#" + collapseId + " span").zoom({
+            'on': 'off'  // Toggle prevents it from disable itself when we stop clicking/pressing/touching
+        });
+
+        // And auto-enable
+        $("div#" + collapseId + " span").trigger('click.zoom');
 
         console.log(item);
     });
