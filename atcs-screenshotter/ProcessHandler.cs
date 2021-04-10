@@ -503,9 +503,18 @@ namespace atcs_screenshotter
                 // Now we upload this file
                 var updateClient = this._updateBlobContainerClient.GetBlobClient(this._updateFile);
 
-                using (var ms = new MemoryStream(Encoding.Unicode.GetBytes(json)))
+                using (var ms = new MemoryStream())
                 {
-                    await updateClient.UploadAsync(ms);
+                    using (var sw = new StreamWriter(ms)) {
+                        // Copy the string into place
+                        await sw.WriteAsync(json);
+                        await sw.FlushAsync();
+
+                        // Reset position
+                        ms.Position = 0;
+
+                        await updateClient.UploadAsync(ms);
+                    }
                 }
             } catch { }
 
