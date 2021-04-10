@@ -1,6 +1,6 @@
 function appOnload() {
-    //$.getJSON("update.json", updateCallback);
-    $.getJSON("https://atcsmon1.z20.web.core.windows.net/update.json", updateCallback);
+    $.getJSON("update.json", updateCallback);
+    //$.getJSON("https://atcsmon1.z20.web.core.windows.net/update.json", updateCallback);
 }
 
 function updateCallback(data) {
