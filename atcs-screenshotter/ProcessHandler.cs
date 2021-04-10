@@ -148,7 +148,7 @@ namespace atcs_screenshotter
         // Information on how we update our helper JS object
         private int _updateFrequency = 30000;
         private int _minUpdateFrequency = 5000;
-        private string _updateFile = "update.js";
+        private string _updateFile = "update.json";
         private string _updateTimerId = "UpdateTimer";
         private BlobContainerClient _updateBlobContainerClient;
 
