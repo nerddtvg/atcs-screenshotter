@@ -513,7 +513,7 @@ namespace atcs_screenshotter
                         // Reset position
                         ms.Position = 0;
 
-                        await updateClient.UploadAsync(ms);
+                        await updateClient.UploadAsync(ms, true);
                     }
                 }
             } catch { }
