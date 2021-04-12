@@ -22,6 +22,7 @@ namespace webapp
             builder.Services.AddMsalAuthentication(options =>
             {
                 builder.Configuration.Bind("AzureAd", options.ProviderOptions.Authentication);
+                options.ProviderOptions.DefaultAccessTokenScopes.Add("https://storage.azure.com/");
             });
 
             await builder.Build().RunAsync();
