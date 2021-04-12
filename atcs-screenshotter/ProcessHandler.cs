@@ -618,7 +618,15 @@ namespace atcs_screenshotter
                                     try {
                                         var blobClient = this._blobContainerClient.GetBlobClient(blobPath);
                                         await blobClient.UploadAsync(ms, true, ctx.Token);
-                                        
+
+                                        // Set information about this screenshot value
+                                        await blobClient.SetMetadataAsync(new Dictionary<string, string>
+                                        {
+                                            { "id", configuration.id },
+                                            { "updateTime", DateTimeOffset.UtcNow.ToString("O") },
+                                            { "name", configuration.name }
+                                        });
+
                                         var headers = new BlobHttpHeaders();
                                         headers.ContentDisposition = "inline";
                                         headers.ContentType = this._ImageMime;
