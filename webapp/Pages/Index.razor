@@ -1,7 +1,112 @@
 ﻿@page "/"
+@using Microsoft.Extensions.Configuration
+@inject IConfiguration Configuration
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@inject IAccessTokenProvider TokenProvider
+@using Azure.Core
+@using Azure.Storage
+@using Azure.Storage.Blobs
+@using Azure.Storage.Blobs.Models
+@using Azure.Storage.Sas
+@using System.Linq
+@using System.IO
 
-<h1>Hello, world!</h1>
+@if (_blobs == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    if (_blobs.Count == 0)
+    {
+        <p>No files found.</p>
+    }
+    else
+    {
+        @foreach(BlobClient bClient in _blobs)
+        {
+            using(var ms = new MemoryStream())
+            {
+                @bClient.DownloadTo(ms);
 
-Welcome to your new app.
+                ms.Position = 0;
 
-<SurveyPrompt Title="How is Blazor working for you?" />
+                <img src="data:image/png;base64,@(System.Convert.ToBase64String(ms.ToArray()))" alt="Image" />
+            }
+        }
+    }
+}
+
+@code {
+    string accessToken;
+    AzureStorageConfiguration storageConfig;
+    BlobContainerClient _blobContainerClient;
+    Microsoft.AspNetCore.Components.WebAssembly.Authentication.AccessToken _token;
+    List<BlobClient> _blobs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Request the files from Azure Blob storage
+        AzureStorageConfiguration storageConfig = Configuration.GetSection(nameof(AzureStorageConfiguration)).Get<AzureStorageConfiguration>();
+
+        // This will be Azure AD based logins only so we only care about the accountName, containerName, and maybe suffix
+        var tokenResult = await TokenProvider.RequestAccessToken(new AccessTokenRequestOptions{Scopes = new[] { "https://storage.azure.com/user_impersonation" }});
+
+        if (tokenResult.TryGetToken(out _token)) {
+            _blobContainerClient = new BlobContainerClient(new Uri($"https://{storageConfig.accountName}.blob.core.windows.net/{storageConfig.containerName}"), new WASMTokenCredential(_token));
+
+            if (await _blobContainerClient.ExistsAsync()) {
+                _blobs = await GetFiles();
+            }
+        } else {
+            //
+        }
+
+    }
+
+    public async Task<List<BlobClient>> GetFiles() {
+        // For this we will get all of the files from the container that have the metadata id set
+        // And we will return the appropriate blob client
+        var ret = new List<BlobClient>();
+
+        var blobs = _blobContainerClient.GetBlobsAsync(BlobTraits.Metadata);
+        await foreach(var item in blobs) {
+            if (item.Metadata.ContainsKey("id"))
+                ret.Add(_blobContainerClient.GetBlobClient(item.Name));
+        }
+
+        return ret;
+    }
+
+    public class WASMTokenCredential : TokenCredential {
+        public Microsoft.AspNetCore.Components.WebAssembly.Authentication.AccessToken _accessToken {get;set;}
+
+        public WASMTokenCredential(Microsoft.AspNetCore.Components.WebAssembly.Authentication.AccessToken accessToken) {
+            this._accessToken = accessToken;
+        }
+
+        public override Azure.Core.AccessToken GetToken (TokenRequestContext requestContext, System.Threading.CancellationToken cancellationToken)
+        {
+            return new Azure.Core.AccessToken(_accessToken.Value, _accessToken.Expires);
+        }
+        
+        public override System.Threading.Tasks.ValueTask<Azure.Core.AccessToken> GetTokenAsync (TokenRequestContext requestContext, System.Threading.CancellationToken cancellationToken) {
+            return new ValueTask<Azure.Core.AccessToken>(Task.FromResult(this.GetToken(requestContext, cancellationToken)));
+        }
+    }
+
+    public class AzureStorageConfiguration {
+        // Storage Account Name
+        public string accountName {get;set;}
+        // Storage Account Suffix, if required
+        public string suffix {get;set;}
+        // Connection String to use
+        public string connectionString {get;set;}
+        // Access Key to use if no connection string
+        public string accessKey {get;set;}
+        // Container name [REQUIRED]
+        public string containerName {get;set;}
+        // Helper JS file container name
+        public string updateContainerName {get;set;}
+    }
+}
